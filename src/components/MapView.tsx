@@ -96,7 +96,7 @@ export default function MapView({
       style: basemap.style as any,
       center: INDIA_VIEW.center,
       zoom: INDIA_VIEW.zoom,
-      attributionControl: { compact: true },
+      attributionControl: { compact: true },  // collapses to an (i) button on phones
       maxZoom: 17,
       minZoom: 2.6,
       dragRotate: true,
@@ -230,6 +230,13 @@ export default function MapView({
           'circle-opacity': 0.95,
         },
       });
+      // Invisible, finger-sized hit target — 4 px circles are unhittable with a thumb.
+      m.addLayer({
+        id: 'events-hit',
+        type: 'circle',
+        source: 'events',
+        paint: { 'circle-color': '#000000', 'circle-opacity': 0, 'circle-radius': 16 },
+      });
       m.addLayer({
         id: 'events-selected',
         type: 'circle',
@@ -259,7 +266,7 @@ export default function MapView({
     }
 
     // Hover + click affordances
-    const hit = ['events-core', 'events-glow'];
+    const hit = ['events-hit', 'events-core'];
     hit.forEach((id) => {
       m.on('mouseenter', id, () => (m.getCanvas().style.cursor = 'pointer'));
       m.on('mouseleave', id, () => (m.getCanvas().style.cursor = ''));
@@ -292,6 +299,7 @@ export default function MapView({
     };
     set('events-glow', layers.events);
     set('events-core', layers.events);
+    set('events-hit', layers.events);
     set('events-selected', layers.events);
     set('events-heat', layers.heat);
     set('risk-fill', layers.risk);

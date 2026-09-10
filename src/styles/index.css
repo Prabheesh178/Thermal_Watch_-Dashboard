@@ -27,6 +27,37 @@ body {
   color: #E6EDF7;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Phones: keep the glass affordable, and never let a pane bounce the page. */
+@media (max-width: 767px) {
+  .glass,
+  .glass-quiet {
+    backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%);
+  }
+
+  .scroll-thin {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide the zoom/scale widgets, never the attribution — CARTO, Esri and OSM
+     all require it to stay visible, so it is lifted clear of the queue sheet. */
+  .maplibregl-ctrl-group,
+  .maplibregl-ctrl-scale {
+    display: none;
+  }
+
+  .maplibregl-ctrl-bottom-right {
+    bottom: 132px;
+  }
+
+  .tw-marker {
+    --size: 16px;
+  }
 }
 
 ::selection {

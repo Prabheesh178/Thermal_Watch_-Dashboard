@@ -14,6 +14,16 @@ import ClassMix from './components/ClassMix';
 import FacilityView from './components/FacilityView';
 import { DEFAULT_BASEMAP, type Basemap } from './lib/basemaps';
 import { useConsole } from './lib/useConsole';
+import { useIsMobile } from './lib/useIsMobile';
+import {
+  MobileDetailScreen,
+  MobileMapControls,
+  MobileMenu,
+  MobileQueueSheet,
+  MobileScenarioRow,
+  MobileTopBar,
+} from './components/MobileShell';
+import type { SheetSnap } from './components/BottomSheet';
 import { DEMO_MODE } from './lib/api';
 
 const SCENARIOS = [
@@ -32,6 +42,9 @@ export default function App() {
   const [layers, setLayers] = useState<LayerFlags>({ events: true, risk: false, facilities: true, heat: false });
   const [focus, setFocus] = useState<{ lat: number; lon: number; zoom?: number } | null>(null);
   const [facility, setFacility] = useState<{ id: string; name: string } | null>(null);
+  const isMobile = useIsMobile();
+  const [sheet, setSheet] = useState<SheetSnap>('peek');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const lastFlown = useRef<string | null>(null);
 
@@ -40,6 +53,12 @@ export default function App() {
     state.setSelectedId(id);
     lastFlown.current = id; // claim the camera so the effect below does not override the zoom
     if (ev) setFocus({ lat: ev.centroid.lat, lon: ev.centroid.lon, zoom });
+    if (isMobile) setSheet('peek');
+  };
+
+  const nationalView = () => {
+    state.setSelectedId(null);
+    setFocus({ lat: 22.6, lon: 79.2, zoom: 4.15 });
   };
 
   // Selection is bidirectional: picking a queue row eases the camera onto its pin.
@@ -73,6 +92,74 @@ export default function App() {
     [state.events],
   );
 
+
+  /* ------------------------------------------------------------- phone layout */
+  if (isMobile) {
+    return (
+      <div className="relative flex h-[100dvh] w-screen flex-col overflow-hidden">
+        <Backdrop />
+        {!booted && <BootSplash onDone={() => setBooted(true)} />}
+
+        <MobileTopBar state={state} onOpenMenu={() => setMenuOpen(true)} />
+
+        <main className="relative min-h-0 flex-1">
+          <MapView
+            events={state.visible}
+            risk={state.risk}
+            facilities={state.facilities}
+            basemap={basemap}
+            layers={layers}
+            selectedId={state.selectedId}
+            onSelect={(id) => selectAndFly(id, 10)}
+            focus={focus}
+          />
+
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 space-y-1.5 pt-2">
+            <KpiStrip state={state} compact />
+            <MobileScenarioRow
+              scenarios={scenarios}
+              selectedId={state.selectedId}
+              onSelect={(id, zoom) => selectAndFly(id, zoom)}
+            />
+          </div>
+
+          <MobileMapControls
+            layers={layers}
+            onLayersChange={setLayers}
+            basemap={basemap}
+            onBasemapChange={setBasemap}
+            state={state}
+            onNationalView={nationalView}
+          />
+
+          <MobileQueueSheet state={state} snap={sheet} onSnapChange={setSheet}>
+            <TriageRail state={state} variant="mobile" />
+          </MobileQueueSheet>
+        </main>
+
+        <MobileDetailScreen open={Boolean(state.selectedId)} onBack={() => state.setSelectedId(null)}>
+          <DetailDrawer state={state} onOpenFacility={setFacility} variant="mobile" />
+        </MobileDetailScreen>
+
+        <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} state={state} />
+
+        {facility && (
+          <FacilityView
+            facilityId={facility.id}
+            facilityName={facility.name}
+            events={state.events}
+            onClose={() => setFacility(null)}
+            onSelectEvent={(id) => {
+              setFacility(null);
+              selectAndFly(id, 11);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  /* ----------------------------------------------------------- desktop layout */
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden">
       <Backdrop />
@@ -160,13 +247,7 @@ export default function App() {
                   {s.label}
                 </button>
               ))}
-              <button
-                onClick={() => {
-                  state.setSelectedId(null);
-                  setFocus({ lat: 22.6, lon: 79.2, zoom: 4.15 });
-                }}
-                className="btn-glass !py-1 backdrop-blur-xl"
-              >
+              <button onClick={nationalView} className="btn-glass !py-1 backdrop-blur-xl">
                 <Globe2 size={11} /> National view
               </button>
             </div>

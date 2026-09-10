@@ -1,4 +1,5 @@
 import CursorGrid from '../reactbits/CursorGrid';
+import { useIsTouch } from '../lib/useIsMobile';
 
 /**
  * Ambient layer beneath the whole console: two slow aurora blooms, a reactive
@@ -6,6 +7,10 @@ import CursorGrid from '../reactbits/CursorGrid';
  * sits behind the map at low opacity so it reads as depth, not decoration.
  */
 export default function Backdrop({ intense = false }: { intense?: boolean }) {
+  // A cursor-reactive lattice has nothing to react to on a touch screen, and it
+  // costs a rAF loop and battery — so phones get the aurora without it.
+  const touch = useIsTouch();
+
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-void grain">
       <div
@@ -43,6 +48,7 @@ export default function Backdrop({ intense = false }: { intense?: boolean }) {
         }}
       />
 
+      {!touch && (
       <div className="absolute inset-0 opacity-[0.55]">
         <CursorGrid
           cellSize={78}
@@ -60,6 +66,7 @@ export default function Backdrop({ intense = false }: { intense?: boolean }) {
           pulseSpeed={520}
         />
       </div>
+      )}
 
       <div className="scanline" />
     </div>

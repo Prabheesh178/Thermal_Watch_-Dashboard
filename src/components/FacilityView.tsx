@@ -84,7 +84,7 @@ export default function FacilityView({
           exit={{ y: 18, opacity: 0, scale: 0.985 }}
           transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className="glass w-[min(860px,92vw)] overflow-hidden rounded-3xl"
+          className="glass h-[100dvh] w-full overflow-y-auto rounded-none sm:h-auto sm:w-[min(860px,92vw)] sm:overflow-hidden sm:rounded-3xl"
         >
           <div className="flex items-center gap-3 border-b border-white/[0.07] px-5 py-3.5">
             <span className="grid h-9 w-9 place-items-center rounded-xl border border-neon-ice/30 bg-neon-ice/10 text-neon-ice">
@@ -116,7 +116,7 @@ export default function FacilityView({
             </div>
           </div>
 
-          <div className="grid grid-cols-[1fr_260px] gap-4 p-5">
+          <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-[1fr_260px] sm:p-5">
             <div>
               <div className="mb-2 flex items-center gap-3">
                 <span className="label">FRP history vs facility baseline</span>

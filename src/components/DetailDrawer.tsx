@@ -10,12 +10,39 @@ import FootprintMap from './FootprintMap';
 export default function DetailDrawer({
   state,
   onOpenFacility,
+  variant = 'desktop',
 }: {
   state: ConsoleState;
   onOpenFacility: (facility: { id: string; name: string }) => void;
+  /** On mobile the drawer fills a screen of its own, so it drops the slide-in chrome. */
+  variant?: 'desktop' | 'mobile';
 }) {
   const { detail, detailLoading, selectedId, setSelectedId, setStatus } = state;
   const open = Boolean(selectedId);
+  const mobile = variant === 'mobile';
+
+  if (mobile) {
+    return (
+      <div className="flex h-full flex-col">
+        {detailLoading && !detail ? (
+          <DrawerSkeleton onClose={() => setSelectedId(null)} />
+        ) : detail ? (
+          <DrawerBody
+            detail={detail}
+            onClose={() => setSelectedId(null)}
+            setStatus={setStatus}
+            onOpenFacility={onOpenFacility}
+            hideClose
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-10 text-center">
+            <Info size={20} className="text-slate-600" />
+            <div className="text-[13px] text-slate-300">Event detail unavailable</div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -78,11 +105,13 @@ function DrawerBody({
   onClose,
   setStatus,
   onOpenFacility,
+  hideClose = false,
 }: {
   detail: EventDetail;
   onClose: () => void;
   setStatus: ConsoleState['setStatus'];
   onOpenFacility: (facility: { id: string; name: string }) => void;
+  hideClose?: boolean;
 }) {
   const meta = typeMeta(detail.inferred.event_type);
   const tone = severityColor(detail.inferred.severity);
@@ -152,9 +181,11 @@ function DrawerBody({
               <span className={detail.status === 'acknowledged' ? 'text-neon-mint' : 'text-slate-500'}>{detail.status}</span>
             </div>
           </div>
-          <button onClick={onClose} className="btn-glass !px-2 !py-1">
-            <X size={12} />
-          </button>
+          {!hideClose && (
+            <button onClick={onClose} className="btn-glass !px-2 !py-1">
+              <X size={12} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -404,7 +435,7 @@ function DrawerBody({
       </div>
 
       {/* actions */}
-      <div className="flex items-center gap-2 border-t border-white/[0.07] px-3.5 py-3">
+      <div className="flex items-center gap-2 border-t border-white/[0.07] px-3.5 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-3">
         <button
           onClick={() => setStatus(detail.event_id, 'acknowledged')}
           className="btn-glass flex-1 justify-center !border-neon-mint/30 !bg-neon-mint/10 !text-neon-mint hover:!bg-neon-mint/20"

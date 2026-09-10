@@ -9,7 +9,14 @@ import { nf, timeAgo } from '../lib/format';
 const GROUPS: Priority[] = ['HIGH', 'MEDIUM', 'LOW'];
 const PAGE = 40;
 
-export default function TriageRail({ state }: { state: ConsoleState }) {
+export default function TriageRail({
+  state,
+  variant = 'desktop',
+}: {
+  state: ConsoleState;
+  /** 'mobile' drops the rail chrome — the bottom sheet supplies it. */
+  variant?: 'desktop' | 'mobile';
+}) {
   const { visible, loading, selectedId, setSelectedId, setStatus, filters, setFilters } = state;
   const [showFilters, setShowFilters] = useState(false);
   const [limit, setLimit] = useState(PAGE);
@@ -42,20 +49,39 @@ export default function TriageRail({ state }: { state: ConsoleState }) {
   const activeFilterCount =
     filters.types.length + filters.priorities.length + (filters.noveltyOnly ? 1 : 0) + (filters.anomalyOnly ? 1 : 0);
 
+  const mobile = variant === 'mobile';
+
   return (
-    <div className="glass-quiet flex h-full w-[400px] shrink-0 flex-col border-l border-white/[0.07]">
-      {/* header */}
-      <div className="flex items-center gap-2 border-b border-white/[0.07] px-3.5 py-3">
-        <div>
-          <div className="text-[13px] font-semibold tracking-tight text-slate-100">Triage queue</div>
-          <div className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-slate-500">
-            {visible.length} in window · sorted by severity
+    <div
+      className={
+        mobile
+          ? 'flex h-full w-full flex-col'
+          : 'glass-quiet flex h-full w-[400px] shrink-0 flex-col border-l border-white/[0.07]'
+      }
+    >
+      {/* header — on mobile the sheet already shows the title, so only filters remain */}
+      <div
+        className={`flex items-center gap-2 border-b border-white/[0.07] ${
+          mobile ? 'px-3 py-2' : 'px-3.5 py-3'
+        }`}
+      >
+        {!mobile && (
+          <div>
+            <div className="text-[13px] font-semibold tracking-tight text-slate-100">Triage queue</div>
+            <div className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-slate-500">
+              {visible.length} in window · sorted by severity
+            </div>
           </div>
-        </div>
+        )}
+        {mobile && (
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.14em] text-slate-500">
+            sorted by severity
+          </span>
+        )}
         <button
           onClick={() => setShowFilters((v) => !v)}
           data-active={showFilters || activeFilterCount > 0}
-          className="btn-glass ml-auto !px-2.5"
+          className={`btn-glass ml-auto !px-2.5 ${mobile ? '!py-1.5' : ''}`}
         >
           <SlidersHorizontal size={12} />
           {activeFilterCount > 0 ? `${activeFilterCount}` : 'Filter'}
@@ -317,13 +343,13 @@ function QueueRow({
           </span>
         ))}
 
-        <div className="ml-auto flex gap-1 opacity-0 transition group-hover:opacity-100">
+        <div className="ml-auto flex gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onAck();
             }}
-            className="grid h-5 w-5 place-items-center rounded border border-white/10 text-slate-400 transition hover:border-neon-mint/50 hover:text-neon-mint"
+            className="grid h-7 w-7 place-items-center rounded-md border border-white/10 text-slate-400 transition hover:border-neon-mint/50 hover:text-neon-mint md:h-5 md:w-5"
             title="Acknowledge"
           >
             <Check size={11} />
@@ -333,7 +359,7 @@ function QueueRow({
               e.stopPropagation();
               onDismiss();
             }}
-            className="grid h-5 w-5 place-items-center rounded border border-white/10 text-slate-400 transition hover:border-[#FF3B4E]/50 hover:text-[#FF8A96]"
+            className="grid h-7 w-7 place-items-center rounded-md border border-white/10 text-slate-400 transition hover:border-[#FF3B4E]/50 hover:text-[#FF8A96] md:h-5 md:w-5"
             title="Dismiss"
           >
             <X size={11} />

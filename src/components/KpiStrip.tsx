@@ -15,7 +15,14 @@ interface Tile {
   icon: JSX.Element;
 }
 
-export default function KpiStrip({ state }: { state: ConsoleState }) {
+export default function KpiStrip({
+  state,
+  compact = false,
+}: {
+  state: ConsoleState;
+  /** Phone layout: one scroll-snap row of narrow tiles instead of a 4-up grid. */
+  compact?: boolean;
+}) {
   const { stats, loading } = state;
 
   const tiles: Tile[] = [
@@ -57,21 +64,29 @@ export default function KpiStrip({ state }: { state: ConsoleState }) {
   ];
 
   return (
-    <div className="pointer-events-none grid grid-cols-2 gap-2 xl:grid-cols-4">
+    <div
+      className={
+        compact
+          ? 'scroll-thin pointer-events-auto flex snap-x snap-mandatory gap-2 overflow-x-auto px-2.5 pb-1'
+          : 'pointer-events-none grid grid-cols-2 gap-2 xl:grid-cols-4'
+      }
+    >
       {tiles.map((t, i) => (
         <motion.div
           key={t.key}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.06 * i, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="glass pointer-events-auto group relative overflow-hidden rounded-2xl px-3.5 py-3"
+          className={`glass pointer-events-auto group relative overflow-hidden rounded-2xl ${
+            compact ? 'w-[172px] shrink-0 snap-start px-3 py-2' : 'px-3.5 py-3'
+          }`}
         >
           <div
             className="absolute inset-x-0 top-0 h-px opacity-70"
             style={{ background: `linear-gradient(90deg, transparent, ${t.tone}, transparent)` }}
           />
-          <div className="flex items-center justify-between">
-            <span className="label">{t.label}</span>
+          <div className="flex items-center justify-between gap-1.5">
+            <span className={`label ${compact ? 'truncate' : ''}`}>{t.label}</span>
             <span
               className="grid h-6 w-6 place-items-center rounded-lg border"
               style={{ borderColor: `${t.tone}44`, color: t.tone, background: `${t.tone}14` }}
@@ -85,7 +100,12 @@ export default function KpiStrip({ state }: { state: ConsoleState }) {
               <span className="skeleton block h-7 w-20 rounded-md" />
             ) : (
               <>
-                <span className="metric text-[26px] font-semibold leading-none tracking-tight" style={{ color: t.tone }}>
+                <span
+                  className={`metric font-semibold leading-none tracking-tight ${
+                    compact ? 'text-[20px]' : 'text-[26px]'
+                  }`}
+                  style={{ color: t.tone }}
+                >
                   <CountUp to={t.value} duration={1.1} separator="," />
                 </span>
                 {t.suffix && <span className="font-mono text-[11px] text-slate-500">{t.suffix}</span>}

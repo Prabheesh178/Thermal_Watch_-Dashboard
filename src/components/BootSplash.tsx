@@ -68,7 +68,7 @@ export default function BootSplash({ onDone }: { onDone: () => void }) {
               drawDuration={1.35}
               fillDelay={0.12}
               stagger={0.045}
-              fontSize={96}
+              fontSize={typeof window !== 'undefined' && window.innerWidth < 768 ? 54 : 96}
               fontWeight={800}
               letterSpacing={-2}
               fillMode="wipe"
