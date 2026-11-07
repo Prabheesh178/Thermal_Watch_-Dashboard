@@ -16,6 +16,7 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
   focus: { lat: number; lon: number; zoom?: number } | null;
+  focusBbox?: [number, number, number, number] | null;
 }
 
 function eventsGeoJSON(events: EventSummary[]) {
@@ -48,6 +49,7 @@ export default function MapView({
   selectedId,
   onSelect,
   focus,
+  focusBbox,
 }: Props) {
   const holder = useRef<HTMLDivElement | null>(null);
   const map = useRef<MLMap | null>(null);
@@ -359,6 +361,19 @@ export default function MapView({
       essential: true,
     });
   }, [focus]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !focusBbox) return;
+    const [west, south, east, north] = focusBbox;
+    m.fitBounds(
+      [
+        [west, south],
+        [east, north],
+      ],
+      { padding: 52, duration: 1100, essential: true },
+    );
+  }, [focusBbox]);
 
   return (
     <div className="absolute inset-0">

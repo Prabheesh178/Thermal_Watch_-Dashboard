@@ -3,7 +3,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Check, ChevronDown, Filter, Radar, SlidersHorizontal, TriangleAlert, X } from 'lucide-react';
 import type { EventSummary, Priority } from '../lib/types';
 import type { ConsoleState } from '../lib/useConsole';
-import { PRIORITY_META, severityColor, typeMeta, TYPE_META } from '../lib/design';
+import {
+  CANONICAL_EVENT_TYPES,
+  DEMO_EVENT_TYPES,
+  PRIORITY_META,
+  severityColor,
+  typeMeta,
+} from '../lib/design';
 import { nf, timeAgo } from '../lib/format';
 
 const GROUPS: Priority[] = ['HIGH', 'MEDIUM', 'LOW'];
@@ -17,10 +23,12 @@ export default function TriageRail({
   /** 'mobile' drops the rail chrome — the bottom sheet supplies it. */
   variant?: 'desktop' | 'mobile';
 }) {
-  const { visible, loading, selectedId, setSelectedId, setStatus, filters, setFilters } = state;
+  const { visible, loading, selectedId, setSelectedId, setStatus, filters, setFilters, link, dataAsOf } = state;
   const [showFilters, setShowFilters] = useState(false);
   const [limit, setLimit] = useState(PAGE);
   const sentinel = useRef<HTMLDivElement | null>(null);
+  const availableClasses = link === 'cached' ? DEMO_EVENT_TYPES : CANONICAL_EVENT_TYPES;
+  const referenceNowMs = dataAsOf ? new Date(dataAsOf).getTime() : Date.now();
 
   const grouped = useMemo(() => {
     const buckets: Record<Priority, EventSummary[]> = { HIGH: [], MEDIUM: [], LOW: [] };
@@ -102,7 +110,7 @@ export default function TriageRail({
               <div>
                 <div className="label mb-1.5">Class</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {Object.keys(TYPE_META).map((t) => {
+                  {availableClasses.map((t) => {
                     const on = filters.types.includes(t);
                     const meta = typeMeta(t);
                     return (
@@ -241,6 +249,7 @@ export default function TriageRail({
                     <QueueRow
                       key={e.event_id}
                       event={e}
+                      referenceNowMs={referenceNowMs}
                       selected={selectedId === e.event_id}
                       onSelect={() => setSelectedId(e.event_id)}
                       onAck={() => setStatus(e.event_id, 'acknowledged')}
@@ -265,12 +274,14 @@ export default function TriageRail({
 
 function QueueRow({
   event,
+  referenceNowMs,
   selected,
   onSelect,
   onAck,
   onDismiss,
 }: {
   event: EventSummary;
+  referenceNowMs: number;
   selected: boolean;
   onSelect: () => void;
   onAck: () => void;
@@ -323,7 +334,7 @@ function QueueRow({
 
         <div className="shrink-0 text-right">
           <div className="metric text-[11.5px] text-slate-200">{nf(event.observed.frp_total_mw)} MW</div>
-          <div className="font-mono text-[9.5px] text-slate-600">{timeAgo(event.last_seen)}</div>
+          <div className="font-mono text-[9.5px] text-slate-600">{timeAgo(event.last_seen, referenceNowMs)}</div>
         </div>
       </div>
 

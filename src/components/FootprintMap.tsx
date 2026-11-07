@@ -65,7 +65,8 @@ export default function FootprintMap({ detail }: { detail: EventDetail }) {
       });
 
       const cone = detail.wind?.downwind_cone;
-      if (cone && cone.length > 2) {
+      const hasBearing = typeof detail.wind?.bearing_deg === 'number';
+      if (hasBearing && cone && cone.length > 2) {
         m.addSource('cone', {
           type: 'geojson',
           data: {
@@ -109,9 +110,10 @@ export default function FootprintMap({ detail }: { detail: EventDetail }) {
       <div className="pointer-events-none absolute bottom-1.5 left-2 font-mono text-[8.5px] uppercase tracking-[0.16em] text-white/55">
         {detail.pixels?.length ?? 0} × 375 m footprints · Esri imagery
       </div>
-      {detail.wind && (
+      {detail.wind && detail.wind.speed_kmh !== null && (
         <div className="pointer-events-none absolute right-2 top-2 rounded-md border border-white/12 bg-black/45 px-2 py-1 font-mono text-[9px] text-white/75 backdrop-blur">
-          wind {detail.wind.speed_kmh} km/h @ {detail.wind.bearing_deg}°
+          wind {detail.wind.speed_kmh} km/h
+          {detail.wind.bearing_deg !== null ? ` @ ${detail.wind.bearing_deg}°` : ''}
         </div>
       )}
     </div>

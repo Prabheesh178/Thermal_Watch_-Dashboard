@@ -17,7 +17,7 @@ export default function DetailDrawer({
   /** On mobile the drawer fills a screen of its own, so it drops the slide-in chrome. */
   variant?: 'desktop' | 'mobile';
 }) {
-  const { detail, detailLoading, selectedId, setSelectedId, setStatus } = state;
+  const { detail, detailLoading, selectedId, setSelectedId, setStatus, link, dataAsOf } = state;
   const open = Boolean(selectedId);
   const mobile = variant === 'mobile';
 
@@ -29,6 +29,8 @@ export default function DetailDrawer({
         ) : detail ? (
           <DrawerBody
             detail={detail}
+            link={link}
+            dataAsOf={dataAsOf}
             onClose={() => setSelectedId(null)}
             setStatus={setStatus}
             onOpenFacility={onOpenFacility}
@@ -61,6 +63,8 @@ export default function DetailDrawer({
           ) : detail ? (
             <DrawerBody
               detail={detail}
+              link={link}
+              dataAsOf={dataAsOf}
               onClose={() => setSelectedId(null)}
               setStatus={setStatus}
               onOpenFacility={onOpenFacility}
@@ -102,12 +106,16 @@ function DrawerSkeleton({ onClose }: { onClose: () => void }) {
 
 function DrawerBody({
   detail,
+  link,
+  dataAsOf,
   onClose,
   setStatus,
   onOpenFacility,
   hideClose = false,
 }: {
   detail: EventDetail;
+  link: ConsoleState['link'];
+  dataAsOf: ConsoleState['dataAsOf'];
   onClose: () => void;
   setStatus: ConsoleState['setStatus'];
   onOpenFacility: (facility: { id: string; name: string }) => void;
@@ -117,10 +125,16 @@ function DrawerBody({
   const tone = severityColor(detail.inferred.severity);
   const o = detail.observed;
   const inf = detail.inferred;
+  const referenceNowMs = dataAsOf ? new Date(dataAsOf).getTime() : Date.now();
+  const cloudDisplay = o.cloud_cover_pct === null || o.cloud_cover_pct === undefined ? 'n/a' : `${o.cloud_cover_pct}%`;
 
   const exportBrief = () => {
+    const provenance =
+      link === 'live'
+        ? `model API · data as of ${dataAsOf ? utc(dataAsOf) : utc(detail.last_seen)}`
+        : 'Demo data, API not connected';
     const lines = [
-      `THERMAL WATCH — EVENT BRIEF (synthetic demonstration data)`,
+      `THERMAL WATCH — EVENT BRIEF (${provenance})`,
       `event_id            ${detail.event_id}`,
       `location            ${coords(detail.centroid.lat, detail.centroid.lon)}`,
       `first / last seen   ${utc(detail.first_seen)}  ->  ${utc(detail.last_seen)}`,
@@ -129,7 +143,7 @@ function DrawerBody({
       `  sensor            ${o.sensor} ${o.satellite} · ${o.daynight === 'N' ? 'night' : 'day'} pass`,
       `  FRP total / max   ${nf(o.frp_total_mw)} MW / ${nf(o.frp_max_mw)} MW`,
       `  brightness TI4    ${nf(o.bright_ti4_max_k)} K${o.bright_ti4_saturated ? ' (saturated — true value is at or above this)' : ''}`,
-      `  detections        ${o.detection_count} px · cloud ${o.cloud_cover_pct}% · ${o.land_cover}`,
+      `  detections        ${o.detection_count} px · cloud ${cloudDisplay} · ${o.land_cover}`,
       `  nearest facility  ${o.nearest_industrial ? `${o.nearest_industrial.name} (${o.nearest_industrial.distance_m} m)` : 'none within search radius'}`,
       ``,
       `MODEL INFERENCE (inferred)`,
@@ -176,7 +190,7 @@ function DrawerBody({
               <span>·</span>
               <span>{coords(detail.centroid.lat, detail.centroid.lon)}</span>
               <span>·</span>
-              <span>{timeAgo(detail.last_seen)}</span>
+              <span>{timeAgo(detail.last_seen, referenceNowMs)}</span>
               <span>·</span>
               <span className={detail.status === 'acknowledged' ? 'text-neon-mint' : 'text-slate-500'}>{detail.status}</span>
             </div>
@@ -221,7 +235,12 @@ function DrawerBody({
               warn={o.bright_ti4_saturated}
             />
             <Metric label="Detections clustered" value={`${o.detection_count}`} unit="px" sub={`${detail.pixel_count} px in footprint`} />
-            <Metric label="Cloud cover" value={`${o.cloud_cover_pct}`} unit="%" sub={o.land_cover.replace(/_/g, ' ')} />
+            <Metric
+              label="Cloud cover"
+              value={o.cloud_cover_pct === null || o.cloud_cover_pct === undefined ? 'n/a' : `${o.cloud_cover_pct}`}
+              unit={o.cloud_cover_pct === null || o.cloud_cover_pct === undefined ? undefined : '%'}
+              sub={o.land_cover.replace(/_/g, ' ')}
+            />
           </div>
 
           <div className="mt-3 border-t border-white/[0.06] pt-2.5">
@@ -364,11 +383,16 @@ function DrawerBody({
             <div className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-slate-300">
               Detection footprint
             </div>
-            {detail.population_5km_exposure > 0 && (
+            {detail.dist_to_populated_m != null ? (
+              <span className="font-mono text-[9.5px] text-slate-400">
+                {int(detail.dist_to_populated_m)} m to nearest populated area
+                {detail.dist_to_infra_m != null ? ` · ${int(detail.dist_to_infra_m)} m to infra` : ''}
+              </span>
+            ) : detail.population_5km_exposure != null && detail.population_5km_exposure > 0 ? (
               <span className="font-mono text-[9.5px] text-slate-500">
                 {int(detail.population_5km_exposure)} people within 5 km
               </span>
-            )}
+            ) : null}
           </header>
           <FootprintMap detail={detail} />
         </section>

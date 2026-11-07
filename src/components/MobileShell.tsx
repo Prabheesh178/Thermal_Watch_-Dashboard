@@ -16,8 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import type { ConsoleState } from '../lib/useConsole';
-import { DEMO_MODE } from '../lib/api';
-import { timeAgo } from '../lib/format';
+import { utc } from '../lib/format';
 import { BASEMAPS, type Basemap } from '../lib/basemaps';
 import { LayerDock, Legend, type LayerFlags } from './MapControls';
 import ClassMix from './ClassMix';
@@ -34,15 +33,15 @@ export function MobileTopBar({
   state: ConsoleState;
   onOpenMenu: () => void;
 }) {
-  const { link, lastSync, replay, toggleReplay, stale } = state;
+  const { link, dataAsOf, replay, toggleReplay } = state;
   const tone =
     link === 'live'
       ? { dot: '#34D399', label: 'LIVE' }
-      : link === 'connecting'
-        ? { dot: '#FBBF24', label: 'LINKING' }
-        : DEMO_MODE
-          ? { dot: '#7DD3FC', label: 'SNAPSHOT' }
-          : { dot: '#FF6B2C', label: 'CACHED' };
+      : link === 'waking'
+        ? { dot: '#FBBF24', label: 'WAKING THE API...' }
+        : link === 'connecting'
+          ? { dot: '#FBBF24', label: 'CONNECTING' }
+          : { dot: '#FF6B2C', label: 'DEMO' };
 
   return (
     <header className="glass-quiet relative z-30 shrink-0 border-b border-white/[0.07] pt-[env(safe-area-inset-top)]">
@@ -55,35 +54,43 @@ export function MobileTopBar({
           <div className="mt-0.5 flex items-center gap-1 font-mono text-[8.5px] uppercase tracking-[0.14em] text-slate-500">
             <span className="h-1 w-1 rounded-full" style={{ background: tone.dot }} />
             <span style={{ color: tone.dot }}>{tone.label}</span>
-            <span>·</span>
-            <span className={stale ? 'text-neon-amber' : ''}>
-              {lastSync ? timeAgo(lastSync) : 'no sync'}
-            </span>
+            {dataAsOf && (
+              <>
+                <span>·</span>
+                <span className="truncate text-slate-400">Data as of {utc(dataAsOf)}</span>
+              </>
+            )}
           </div>
         </div>
 
-        <button
-          onClick={() => void toggleReplay(replay.speed)}
-          data-active={replay.active}
-          className="btn-glass ml-auto !px-2.5 !py-1.5"
-          aria-label={replay.active ? 'Pause replay' : 'Start replay'}
-        >
-          {replay.active ? <Pause size={12} /> : <Play size={12} />}
-          {replay.active ? `${replay.speed}×` : 'Replay'}
-        </button>
-        <button onClick={onOpenMenu} className="btn-glass !px-2 !py-1.5" aria-label="More controls">
-          <MoreHorizontal size={14} />
-        </button>
+        <div className="ml-auto flex items-center gap-1.5">
+          {link === 'cached' && (
+            <button
+              onClick={() => void toggleReplay(replay.speed)}
+              data-active={replay.active}
+              className="btn-glass !px-2.5 !py-1.5"
+              aria-label={replay.active ? 'Pause replay' : 'Start replay'}
+            >
+              {replay.active ? <Pause size={12} /> : <Play size={12} />}
+              {replay.active ? `${replay.speed}×` : 'Replay'}
+            </button>
+          )}
+          <button onClick={onOpenMenu} className="btn-glass !px-2 !py-1.5" aria-label="More controls">
+            <MoreHorizontal size={14} />
+          </button>
+        </div>
       </div>
 
+      {state.link === 'waking' && (
+        <div className="flex items-center gap-1.5 px-3 pb-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-neon-amber">
+          Waking the API...
+        </div>
+      )}
+
       {state.link === 'cached' && (
-        <div
-          className={`flex items-center gap-1.5 px-3 pb-1.5 font-mono text-[9px] uppercase tracking-[0.12em] ${
-            DEMO_MODE ? 'text-neon-ice' : 'text-neon-ember'
-          }`}
-        >
+        <div className="flex items-center gap-1.5 px-3 pb-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-neon-ember">
           <CloudOff size={10} />
-          {DEMO_MODE ? 'Hosted demo — bundled synthetic snapshot' : 'Service unreachable — cached snapshot'}
+          Demo data, API not connected
         </div>
       )}
     </header>
@@ -184,7 +191,7 @@ export function MobileMapControls({
 
       <Sheet open={sheet === 'layers'} onClose={() => setSheet(null)} title="Layers & legend">
         <div className="space-y-2.5">
-          <LayerDock layers={layers} onChange={onLayersChange} />
+          <LayerDock layers={layers} onChange={onLayersChange} hasRiskLayer={Boolean(state.risk)} />
           <Legend />
           <ClassMix state={state} />
         </div>
@@ -222,16 +229,61 @@ export function MobileMenu({
   open,
   onClose,
   state,
+  onSelectRegion,
 }: {
   open: boolean;
   onClose: () => void;
   state: ConsoleState;
+  onSelectRegion?: (regionName: string) => void;
 }) {
-  const { filters, setFilters, replay, toggleReplay, reload, health, stats } = state;
+  const {
+    filters,
+    setFilters,
+    replay,
+    toggleReplay,
+    reload,
+    health,
+    stats,
+    link,
+    regions,
+    selectedRegion,
+    setSelectedRegion,
+    dataAsOf,
+  } = state;
+
+  const artifactText = (() => {
+    if (link === 'live' && health?.model_artifacts) {
+      return Object.values(health.model_artifacts)
+        .filter((a) => a.exists)
+        .map((a) => `${a.filename}${a.modified_at ? ` (${a.modified_at.slice(0, 10)})` : ''}`)
+        .join(' · ');
+    }
+    return link === 'cached' ? 'Demo data, API not connected' : 'Loading model artifacts...';
+  })();
 
   return (
     <Sheet open={open} onClose={onClose} title="Console controls">
       <div className="space-y-4">
+        <div>
+          <div className="label mb-1.5">Indian Industrial Region (/regions)</div>
+          <select
+            value={selectedRegion}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (onSelectRegion) onSelectRegion(next);
+              else setSelectedRegion(next);
+              onClose();
+            }}
+            className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0B101B] px-3 font-mono text-[12px] text-slate-200 outline-none focus:border-neon-cyan/40"
+          >
+            {regions.map((r) => (
+              <option key={r.name} value={r.name} className="bg-[#0B101B] text-slate-200">
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="relative flex items-center">
           <Search size={14} className="absolute left-3 text-slate-500" />
           <input
@@ -243,42 +295,40 @@ export function MobileMenu({
           />
         </div>
 
-        <div>
-          <div className="label mb-1.5">Replay speed</div>
-          <div className="flex gap-1.5">
-            {SPEEDS.map((s) => (
-              <button
-                key={s}
-                onClick={() => void toggleReplay(s)}
-                data-active={replay.active && replay.speed === s}
-                className="btn-glass flex-1 justify-center !py-2"
-              >
-                {s}×
-              </button>
-            ))}
-          </div>
-          {replay.active && (
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.08]">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-neon-amber to-neon-ember transition-all"
-                style={{ width: `${replay.progress}%` }}
-              />
+        {link === 'cached' && (
+          <div>
+            <div className="label mb-1.5">Replay speed (demo mode)</div>
+            <div className="flex gap-1.5">
+              {SPEEDS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => void toggleReplay(s)}
+                  data-active={replay.active && replay.speed === s}
+                  className="btn-glass flex-1 justify-center !py-2"
+                >
+                  {s}×
+                </button>
+              ))}
             </div>
-          )}
-        </div>
+            {replay.active && (
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.08]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-neon-amber to-neon-ember transition-all"
+                  style={{ width: `${replay.progress}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <button onClick={() => void reload()} className="btn-glass w-full justify-center !py-2.5">
           <RefreshCw size={13} /> Re-poll the service
         </button>
 
         <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 font-mono text-[10px] leading-relaxed text-slate-500">
-          <div>FIRMS publishes ≈ 3 h behind the overpass — this console never implies live coverage.</div>
-          <div className="mt-1.5 text-slate-400">
-            {health
-              ? `models A ${health.model_versions.Model_A_Clustering} · B ${health.model_versions.Model_B_Classification} · C ${health.model_versions.Model_C_EscalationRisk}`
-              : 'models A 1.0.2 · B 1.0.0 · C 1.0.1'}
-          </div>
-          <div className="text-slate-400">{stats.total} events in the current window</div>
+          {dataAsOf && <div>Data as of {utc(dataAsOf)}</div>}
+          <div className="mt-1.5 text-slate-400">{artifactText}</div>
+          <div className="text-slate-400">{stats.total} events in the current region</div>
         </div>
       </div>
     </Sheet>

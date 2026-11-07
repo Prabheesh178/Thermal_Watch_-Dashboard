@@ -88,11 +88,14 @@ const LAYER_ROWS: { key: keyof LayerFlags; label: string; note: string; icon: JS
 export function LayerDock({
   layers,
   onChange,
+  hasRiskLayer = false,
 }: {
   layers: LayerFlags;
   onChange: (l: LayerFlags) => void;
+  hasRiskLayer?: boolean;
 }) {
-  const activeCount = LAYER_ROWS.filter((r) => layers[r.key]).length;
+  const visibleRows = LAYER_ROWS.filter((r) => (r.key === 'risk' ? hasRiskLayer : true));
+  const activeCount = visibleRows.filter((r) => layers[r.key]).length;
 
   return (
     <div className="glass overflow-hidden rounded-2xl">
@@ -100,12 +103,12 @@ export function LayerDock({
         <Layers size={12} className="text-neon-cyan" />
         <span className="label !text-slate-300">Surveillance layers</span>
         <span className="ml-auto font-mono text-[9.5px] text-slate-600">
-          {activeCount}/{LAYER_ROWS.length}
+          {activeCount}/{visibleRows.length}
         </span>
       </div>
 
       <div className="space-y-0.5 p-1.5">
-        {LAYER_ROWS.map((row) => {
+        {visibleRows.map((row) => {
           const on = layers[row.key];
           return (
             <button

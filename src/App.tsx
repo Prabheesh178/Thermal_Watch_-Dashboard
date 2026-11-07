@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { CloudOff, Crosshair, Globe2, Layers, PieChart, Thermometer } from 'lucide-react';
+import { CloudOff, Crosshair, Globe2, Layers, PieChart, RefreshCw, Thermometer } from 'lucide-react';
 import Backdrop from './components/Backdrop';
 import BootSplash from './components/BootSplash';
 import CommandBar from './components/CommandBar';
@@ -39,8 +39,14 @@ export default function App() {
   const state = useConsole();
   const [booted, setBooted] = useState(false);
   const [basemap, setBasemap] = useState<Basemap>(DEFAULT_BASEMAP);
-  const [layers, setLayers] = useState<LayerFlags>({ events: true, risk: false, facilities: true, heat: false });
+  const [layers, setLayers] = useState<LayerFlags>({
+    events: true,
+    risk: false,
+    facilities: true,
+    heat: false,
+  });
   const [focus, setFocus] = useState<{ lat: number; lon: number; zoom?: number } | null>(null);
+  const [focusBbox, setFocusBbox] = useState<[number, number, number, number] | null>(null);
   const [facility, setFacility] = useState<{ id: string; name: string } | null>(null);
   const isMobile = useIsMobile();
   const [sheet, setSheet] = useState<SheetSnap>('peek');
@@ -51,10 +57,22 @@ export default function App() {
   const selectAndFly = (id: string, zoom = 9.5) => {
     const ev = state.events.find((e) => e.event_id === id);
     state.setSelectedId(id);
-    lastFlown.current = id; // claim the camera so the effect below does not override the zoom
+    lastFlown.current = id;
     if (ev) setFocus({ lat: ev.centroid.lat, lon: ev.centroid.lon, zoom });
     if (isMobile) setSheet('peek');
   };
+
+  const handleSelectRegion = useCallback(
+    (regionName: string) => {
+      state.setSelectedId(null);
+      state.setSelectedRegion(regionName);
+      const reg = state.regions.find((r) => r.name === regionName);
+      if (reg?.bbox) {
+        setFocusBbox([reg.bbox.west, reg.bbox.south, reg.bbox.east, reg.bbox.north]);
+      }
+    },
+    [state],
+  );
 
   const nationalView = () => {
     state.setSelectedId(null);
@@ -62,7 +80,6 @@ export default function App() {
   };
 
   // Selection is bidirectional: picking a queue row eases the camera onto its pin.
-  // Zoom is left undefined so the map keeps the operator's current scale.
   useEffect(() => {
     const id = state.selectedId;
     if (!id || lastFlown.current === id) return;
@@ -92,7 +109,6 @@ export default function App() {
     [state.events],
   );
 
-
   /* ------------------------------------------------------------- phone layout */
   if (isMobile) {
     return (
@@ -112,6 +128,7 @@ export default function App() {
             selectedId={state.selectedId}
             onSelect={(id) => selectAndFly(id, 10)}
             focus={focus}
+            focusBbox={focusBbox}
           />
 
           <div className="pointer-events-none absolute inset-x-0 top-0 z-20 space-y-1.5 pt-2">
@@ -141,7 +158,12 @@ export default function App() {
           <DetailDrawer state={state} onOpenFacility={setFacility} variant="mobile" />
         </MobileDetailScreen>
 
-        <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} state={state} />
+        <MobileMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          state={state}
+          onSelectRegion={handleSelectRegion}
+        />
 
         {facility && (
           <FacilityView
@@ -165,9 +187,29 @@ export default function App() {
       <Backdrop />
       {!booted && <BootSplash onDone={() => setBooted(true)} />}
 
-      <CommandBar state={state} />
+      <CommandBar state={state} onSelectRegion={handleSelectRegion} />
 
-      {/* offline / cached banner — never a white screen */}
+      {/* Cold-start waking banner */}
+      <AnimatePresence>
+        {state.link === 'waking' && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="relative z-20 flex items-center gap-2 border-b border-neon-amber/25 bg-neon-amber/[0.08] px-4 py-1.5 backdrop-blur-xl"
+          >
+            <RefreshCw size={12} className="animate-spin text-neon-amber" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-neon-amber">
+              Waking the API...
+            </span>
+            <span className="font-mono text-[10px] text-slate-400">
+              Render free-tier service is spinning up and loading trained model artifacts (may take 30–60s).
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Offline / demo fallback banner — Decision B.8: must read "Demo data, API not connected" */}
       <AnimatePresence>
         {state.link === 'cached' && (
           <motion.div
@@ -186,24 +228,15 @@ export default function App() {
                 DEMO_MODE ? 'text-neon-ice' : 'text-neon-ember'
               }`}
             >
-              {DEMO_MODE
-                ? 'Hosted demo — bundled synthetic snapshot, 208 events'
-                : 'Service unreachable — showing the cached synthetic snapshot'}
+              Demo data, API not connected
             </span>
-            <span className="font-mono text-[10px] text-slate-500">
-              {DEMO_MODE ? (
-                <>
-                  live telemetry runs against the service —{' '}
-                  <span className="text-slate-300">python3 server/mock_api.py</span> locally
-                </>
-              ) : (
-                <>
-                  start it with <span className="text-slate-300">python3 server/mock_api.py</span>
-                </>
-              )}
+            <span className="truncate font-mono text-[10px] text-slate-400">
+              {state.apiError
+                ? `(${state.apiError})`
+                : `Showing bundled demo snapshot (${state.events.length} events). Set VITE_API_URL to connect to the FastAPI model backend.`}
             </span>
             {!DEMO_MODE && (
-              <button onClick={() => void state.reload()} className="btn-glass ml-auto !py-1">
+              <button onClick={() => void state.reload()} className="btn-glass ml-auto shrink-0 !py-1">
                 Retry link
               </button>
             )}
@@ -223,6 +256,7 @@ export default function App() {
             selectedId={state.selectedId}
             onSelect={(id) => selectAndFly(id, 11)}
             focus={focus}
+            focusBbox={focusBbox}
           />
 
           {/* top overlay: KPIs + scenario deck */}
@@ -232,21 +266,29 @@ export default function App() {
             </div>
 
             <div className="pointer-events-auto mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
-              <span className="label mr-1 flex items-center gap-1.5">
-                <Crosshair size={10} /> Scenarios
-              </span>
-              {scenarios.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => selectAndFly(s.id, s.zoom)}
-                  data-active={state.selectedId === s.id}
-                  className="btn-glass !py-1 backdrop-blur-xl"
-                  style={state.selectedId === s.id ? { borderColor: `${s.tone}66`, color: s.tone } : undefined}
-                >
-                  <span style={{ color: s.tone }}>●</span>
-                  {s.label}
-                </button>
-              ))}
+              {scenarios.length > 0 && (
+                <>
+                  <span className="label mr-1 flex items-center gap-1.5">
+                    <Crosshair size={10} /> Scenarios
+                  </span>
+                  {scenarios.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => selectAndFly(s.id, s.zoom)}
+                      data-active={state.selectedId === s.id}
+                      className="btn-glass !py-1 backdrop-blur-xl"
+                      style={
+                        state.selectedId === s.id
+                          ? { borderColor: `${s.tone}66`, color: s.tone }
+                          : undefined
+                      }
+                    >
+                      <span style={{ color: s.tone }}>●</span>
+                      {s.label}
+                    </button>
+                  ))}
+                </>
+              )}
               <button onClick={nationalView} className="btn-glass !py-1 backdrop-blur-xl">
                 <Globe2 size={11} /> National view
               </button>
@@ -257,7 +299,11 @@ export default function App() {
           <div className="pointer-events-none absolute bottom-5 left-3 top-[152px] z-10 flex flex-col justify-between">
             <div className="space-y-2.5">
               <DockPanel id="layers" label="Layers" icon={<Layers size={13} />} tone="#22D3EE">
-                <LayerDock layers={layers} onChange={setLayers} />
+                <LayerDock
+                  layers={layers}
+                  onChange={setLayers}
+                  hasRiskLayer={Boolean(state.risk)}
+                />
               </DockPanel>
               <DockPanel
                 id="mix"
@@ -279,9 +325,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* replay progress */}
+          {/* replay progress (demo mode only) */}
           <AnimatePresence>
-            {state.replay.active && (
+            {state.link === 'cached' && state.replay.active && (
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -289,7 +335,9 @@ export default function App() {
                 className="glass absolute bottom-3 left-1/2 z-10 w-[420px] -translate-x-1/2 rounded-2xl px-4 py-2.5"
               >
                 <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
-                  <span className="uppercase tracking-[0.16em] text-neon-amber">Replay · {state.replay.speed}×</span>
+                  <span className="uppercase tracking-[0.16em] text-neon-amber">
+                    Replay · {state.replay.speed}×
+                  </span>
                   <span>
                     {state.replay.virtualTime
                       ? `${state.replay.virtualTime.slice(0, 10)} ${state.replay.virtualTime.slice(11, 19)}Z`
