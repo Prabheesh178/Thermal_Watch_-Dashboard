@@ -1,18 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  API_BASE,
   cached,
   DEMO_MODE,
   fetchEventDetail,
   fetchEvents,
   fetchFacilities,
   fetchHealth,
-  fetchRisk,
-  startReplay,
-  stopReplay,
+  fetchRegions,
 } from './api';
-import type { EventDetail, EventStatus, EventSummary, Health, LinkState } from './types';
+import { DISPLAY_THRESHOLDS } from './displayThresholds';
 import { hoursSince } from './format';
+import type {
+  EventDetail,
+  EventStatus,
+  EventSummary,
+  Health,
+  LinkState,
+  RegionInfo,
+} from './types';
 
 export interface Filters {
   types: string[];
@@ -28,7 +33,7 @@ export const DEFAULT_FILTERS: Filters = {
   priorities: [],
   noveltyOnly: false,
   anomalyOnly: false,
-  windowHours: 48,
+  windowHours: 168,
   query: '',
 };
 
@@ -39,12 +44,48 @@ export interface ReplayState {
   progress: number;
 }
 
+const DEFAULT_REGIONS: RegionInfo[] = [
+  {
+    name: 'gujarat',
+    label: 'Gujarat Industrial Belt (Hazira, Dahej, Jamnagar, Surat)',
+    bbox: { west: 69.5, south: 20.5, east: 73.8, north: 23.0 },
+    description: 'Petrochemical refineries, LNG terminals, ports, and heavy chemical clusters in Gujarat.',
+  },
+  {
+    name: 'maharashtra',
+    label: 'Maharashtra Industrial Belt (Mumbai, MMR, Pune, Raigad, Tarapur)',
+    bbox: { west: 72.6, south: 18.3, east: 74.5, north: 20.0 },
+    description: 'Chemical corridors, manufacturing MIDCs, and energy installations in Maharashtra.',
+  },
+  {
+    name: 'odisha',
+    label: 'Odisha Industrial Belt (Angul, Jharsuguda, Paradip, Kalinganagar)',
+    bbox: { west: 83.5, south: 19.8, east: 87.0, north: 22.2 },
+    description: 'Steel plants, aluminum smelters, coal mining complexes, and deep-water ports in Odisha.',
+  },
+  {
+    name: 'chhattisgarh_jharkhand',
+    label: 'East-Central Mining & Steel Belt (Bhilai, Korba, Dhanbad, Jamshedpur)',
+    bbox: { west: 81.0, south: 21.0, east: 86.8, north: 24.2 },
+    description: 'Coal fields, thermal power plants, and integrated steelworks in CG & JH.',
+  },
+  {
+    name: 'all_india',
+    label: 'All India Coverage',
+    bbox: { west: 68.0, south: 6.5, east: 97.5, north: 37.5 },
+    description: 'Nationwide active fire and thermal anomaly coverage across the Indian subcontinent.',
+  },
+];
+
 export function useConsole() {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [risk, setRisk] = useState<any>(null);
   const [facilities, setFacilities] = useState<any>(null);
   const [health, setHealth] = useState<Health | null>(null);
+  const [regions, setRegions] = useState<RegionInfo[]>(DEFAULT_REGIONS);
+  const [selectedRegion, setSelectedRegion] = useState<string>('gujarat');
   const [link, setLink] = useState<LinkState>('connecting');
+  const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
@@ -53,91 +94,122 @@ export function useConsole() {
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [replay, setReplay] = useState<ReplayState>({ active: false, speed: 600, virtualTime: null, progress: 0 });
+  const [replay, setReplay] = useState<ReplayState>({
+    active: false,
+    speed: 600,
+    virtualTime: null,
+    progress: 0,
+  });
 
-  const esRef = useRef<EventSource | null>(null);
+  const modelArtifactLabel = useMemo(() => {
+    const ma = health?.model_artifacts?.model_a;
+    if (ma?.exists) {
+      const mtime = ma.modified_at ? ` (${ma.modified_at.slice(0, 10)})` : '';
+      return `${ma.filename}${mtime}`;
+    }
+    return health?.model_versions?.model_a || 'model_a.joblib';
+  }, [health]);
 
-  /** One load path for live and cached — the cached branch is a fallback, not a second contract. */
-  const load = useCallback(async () => {
-    setLoading(true);
-    if (DEMO_MODE) {
-      setEvents(cached.events());
-      setRisk(cached.risk());
-      setFacilities(cached.facilities());
-      setLink('cached');
-      setLastSync(cached.generatedAt);
-      setLoading(false);
-      return;
-    }
-    try {
-      const [h, evts, riskGrid, fac] = await Promise.all([
-        fetchHealth(),
-        fetchEvents({ limit: 300 }),
-        fetchRisk().catch(() => cached.risk()),
-        fetchFacilities().catch(() => cached.facilities()),
-      ]);
-      setHealth(h);
-      setEvents(evts);
-      setRisk(riskGrid);
-      setFacilities(fac);
-      setLink('live');
-      setLastSync(new Date().toISOString());
-    } catch {
-      setEvents(cached.events());
-      setRisk(cached.risk());
-      setFacilities(cached.facilities());
-      setHealth(null);
-      setLink('cached');
-      setLastSync(cached.generatedAt);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (regionOverride?: string) => {
+      const targetRegion = regionOverride ?? selectedRegion;
+      setLoading(true);
+      setApiError(null);
+
+      if (DEMO_MODE) {
+        setEvents(cached.events());
+        setRisk(cached.risk());
+        setFacilities(cached.facilities());
+        setHealth(null);
+        setLink('cached');
+        setLastSync(cached.generatedAt);
+        setLoading(false);
+        return;
+      }
+
+      const handleWaking = () => {
+        setLink((prev) => (prev === 'connecting' ? 'waking' : prev));
+      };
+
+      try {
+        const [h, regList, fac] = await Promise.all([
+          fetchHealth(handleWaking),
+          fetchRegions().catch(() => DEFAULT_REGIONS),
+          fetchFacilities().catch(() => ({ type: 'FeatureCollection', features: [] })),
+        ]);
+
+        if (regList && regList.length > 0) {
+          setRegions(regList);
+        }
+
+        if (h.status !== 'ok') {
+          throw new Error(h.error || 'Model artifacts not loaded on API server');
+        }
+
+        const artifactLbl =
+          h.model_versions?.model_a || 'model_a.joblib';
+
+        const evts = await fetchEvents({
+          region: targetRegion,
+          modelArtifactLabel: artifactLbl,
+          onWaking: handleWaking,
+        });
+
+        setHealth(h);
+        setEvents(evts);
+        // Decision B.2: Skip /risk when connected to real API; hide that map layer when absent.
+        setRisk(null);
+        setFacilities(fac);
+        setLink('live');
+        setLastSync(h.data_as_of || new Date().toISOString());
+      } catch (err: any) {
+        setApiError(err?.message ? String(err.message) : 'API unreachable');
+        setEvents(cached.events());
+        setRisk(cached.risk());
+        setFacilities(cached.facilities());
+        setHealth(null);
+        setLink('cached');
+        setLastSync(cached.generatedAt);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedRegion],
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(selectedRegion);
+  }, [load, selectedRegion]);
 
-  /** Live push. `event_update` is a full EventSummary — upsert by id, never append. */
+  /**
+   * Decision B.3: Poll `/hotspots` on an interval when connected to the real API.
+   * Never open EventSource(`/stream`) against the real API and never flip `link` to `'cached'` due to missing SSE.
+   */
   useEffect(() => {
     if (link !== 'live') return;
-    const es = new EventSource(`${API_BASE}/stream`);
-    esRef.current = es;
+    const timer = setInterval(async () => {
+      try {
+        const [h, evts] = await Promise.all([
+          fetchHealth(),
+          fetchEvents({
+            region: selectedRegion,
+            modelArtifactLabel,
+          }),
+        ]);
+        if (h.status === 'ok') {
+          setHealth(h);
+          setEvents(evts);
+          setLastSync(h.data_as_of || new Date().toISOString());
+        }
+      } catch {
+        // Keep current live view on transient poll hiccup
+      }
+    }, DISPLAY_THRESHOLDS.API_POLL_INTERVAL_MS);
 
-    es.addEventListener('ping', (e) => {
-      const data = JSON.parse((e as MessageEvent).data);
-      setLastSync(data.server_time);
-    });
+    return () => clearInterval(timer);
+  }, [link, selectedRegion, modelArtifactLabel]);
 
-    es.addEventListener('event_update', (e) => {
-      const incoming = JSON.parse((e as MessageEvent).data) as EventSummary;
-      setEvents((prev) => {
-        const idx = prev.findIndex((x) => x.event_id === incoming.event_id);
-        if (idx === -1) return [incoming, ...prev];
-        const next = [...prev];
-        next[idx] = { ...next[idx], ...incoming };
-        return next;
-      });
-    });
-
-    es.addEventListener('replay_tick', (e) => {
-      const t = JSON.parse((e as MessageEvent).data);
-      setReplay({ active: true, speed: t.speed, virtualTime: t.virtual_time, progress: t.progress_pct });
-    });
-
-    es.addEventListener('replay_end', () => {
-      setReplay((r) => ({ ...r, active: false, progress: 100 }));
-    });
-
-    es.onerror = () => {
-      es.close();
-      setLink('cached');
-    };
-
-    return () => es.close();
-  }, [link]);
-
-  // Detail fetch, with the cached snapshot as fallback so every event opens offline.
+  // Detail fetch, with the cached snapshot as fallback only in offline demo mode.
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
@@ -145,8 +217,38 @@ export function useConsole() {
     }
     let cancelled = false;
     setDetailLoading(true);
-    (link === 'live' ? fetchEventDetail(selectedId) : Promise.reject(new Error('offline')))
+    (link === 'live'
+      ? fetchEventDetail(selectedId, modelArtifactLabel)
+      : Promise.reject(new Error('offline')))
       .catch(() => {
+        if (link === 'live') {
+          // Synthesise basic detail from the live summary if /hotspot/{id} fails transiently
+          const liveSummary = events.find((e) => e.event_id === selectedId);
+          if (liveSummary) {
+            return {
+              ...liveSummary,
+              frp_series: [],
+              baseline: null,
+              pixels: [
+                {
+                  lat: liveSummary.centroid.lat,
+                  lon: liveSummary.centroid.lon,
+                  frp_mw: liveSummary.observed.frp_max_mw,
+                  temp_k: liveSummary.observed.bright_ti4_max_k,
+                },
+              ],
+              wind: { speed_kmh: null, bearing_deg: null },
+              dist_to_populated_m: null,
+              dist_to_infra_m: null,
+              population_5km_exposure: null,
+              imagery: null,
+              timeline: [
+                { ts: liveSummary.first_seen, event: 'first_detection' },
+                { ts: liveSummary.last_seen, event: `classified_${liveSummary.inferred.event_type}` },
+              ],
+            } as EventDetail;
+          }
+        }
         const fallback = cached.detail(selectedId);
         if (!fallback) throw new Error('unknown event');
         return fallback;
@@ -163,68 +265,103 @@ export function useConsole() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, link]);
+  }, [selectedId, link, modelArtifactLabel, events]);
 
   const withStatus = useMemo(
-    () => events.map((e) => (statusOverrides[e.event_id] ? { ...e, status: statusOverrides[e.event_id] } : e)),
+    () =>
+      events.map((e) =>
+        statusOverrides[e.event_id] ? { ...e, status: statusOverrides[e.event_id] } : e,
+      ),
     [events, statusOverrides],
   );
+
+  /**
+   * Dataset currency timestamp (`dataAsOf`):
+   * Decision B.4: Filter time windows relative to `data_as_of` from `/health` (or max `last_seen` in dataset),
+   * never `Date.now()`.
+   */
+  const dataAsOf = useMemo(() => {
+    if (link === 'live' && health?.data_as_of) {
+      return health.data_as_of;
+    }
+    if (withStatus.length > 0) {
+      let maxTs = withStatus[0].last_seen;
+      for (const e of withStatus) {
+        if (e.last_seen > maxTs) maxTs = e.last_seen;
+      }
+      return maxTs;
+    }
+    return link === 'cached' ? cached.generatedAt : null;
+  }, [link, health, withStatus]);
 
   const visible = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
     return withStatus.filter((e) => {
       if (e.status === 'dismissed' && !filters.query) return false;
       if (filters.types.length && !filters.types.includes(e.inferred.event_type)) return false;
-      if (filters.priorities.length && !filters.priorities.includes(e.inferred.priority)) return false;
+      if (filters.priorities.length && !filters.priorities.includes(e.inferred.priority))
+        return false;
       if (filters.noveltyOnly && !e.inferred.novelty_flag) return false;
       if (filters.anomalyOnly && !e.inferred.anomaly_flag) return false;
-      if (hoursSince(e.last_seen) > filters.windowHours) return false;
+      if (hoursSince(e.last_seen, dataAsOf) > filters.windowHours) return false;
       if (q) {
-        const hay = `${e.event_id} ${e.inferred.event_type} ${e.observed.nearest_industrial?.name ?? 'no known facility'}`;
+        const hay = `${e.event_id} ${e.inferred.event_type} ${e.observed.nearest_industrial?.name ?? 'no known facility'} ${e.location_key ?? ''}`;
         if (!hay.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [withStatus, filters]);
+  }, [withStatus, filters, dataAsOf]);
 
   const setStatus = useCallback((id: string, status: EventStatus) => {
     setStatusOverrides((prev) => ({ ...prev, [id]: status }));
   }, []);
 
+  /**
+   * Decision B.3: Replay controls are only active in offline demo mode (`link === 'cached'`).
+   */
   const toggleReplay = useCallback(
     async (speed: number) => {
+      if (link === 'live') return;
       if (replay.active) {
         setReplay((r) => ({ ...r, active: false }));
-        if (link === 'live') await stopReplay().catch(() => {});
         return;
       }
-      setReplay({ active: true, speed, virtualTime: new Date(Date.now() - 864e5).toISOString(), progress: 0 });
-      if (link === 'live') await startReplay(speed).catch(() => {});
+      const refMs = dataAsOf ? new Date(dataAsOf).getTime() : Date.now();
+      setReplay({
+        active: true,
+        speed,
+        virtualTime: new Date(refMs - 864e5).toISOString(),
+        progress: 0,
+      });
     },
-    [replay.active, link],
+    [replay.active, link, dataAsOf],
   );
 
-  // Offline replay clock, so the demo still walks the timeline without the service.
+  // Offline replay clock for demo mode only.
   useEffect(() => {
     if (!replay.active || link === 'live') return;
+    const refMs = dataAsOf ? new Date(dataAsOf).getTime() : Date.now();
     const id = setInterval(() => {
       setReplay((r) => {
         if (!r.active) return r;
         const progress = Math.min(100, r.progress + (r.speed / 600) * 2.2);
-        const virtual = new Date(Date.now() - 864e5 + (progress / 100) * 864e5).toISOString();
+        const virtual = new Date(refMs - 864e5 + (progress / 100) * 864e5).toISOString();
         return { ...r, progress, virtualTime: virtual, active: progress < 100 };
       });
     }, 400);
     return () => clearInterval(id);
-  }, [replay.active, link]);
+  }, [replay.active, link, dataAsOf]);
 
   const stats = useMemo(() => {
     const total = withStatus.length;
-    const critical = withStatus.filter((e) => e.inferred.anomaly_flag && Math.abs(e.inferred.anomaly_z) > 3).length;
+    const critical = withStatus.filter(
+      (e) => e.inferred.anomaly_flag && Math.abs(e.inferred.anomaly_z) > 3,
+    ).length;
     const novelty = withStatus.filter((e) => e.inferred.novelty_flag).length;
     const frp = withStatus.reduce((sum, e) => sum + e.observed.frp_total_mw, 0);
     const peak = withStatus.reduce(
-      (best, e) => (e.observed.frp_total_mw > best.value ? { value: e.observed.frp_total_mw, event: e } : best),
+      (best, e) =>
+        e.observed.frp_total_mw > best.value ? { value: e.observed.frp_total_mw, event: e } : best,
       { value: 0, event: undefined as EventSummary | undefined },
     );
     const high = withStatus.filter((e) => e.inferred.priority === 'HIGH' && e.status === 'new').length;
@@ -235,7 +372,10 @@ export function useConsole() {
     return { total, critical, novelty, frp, peak, high, byType };
   }, [withStatus]);
 
-  const stale = lastSync ? hoursSince(lastSync) > 6 : false;
+  const currentRegionInfo = useMemo(
+    () => regions.find((r) => r.name === selectedRegion) ?? regions[0] ?? DEFAULT_REGIONS[0],
+    [regions, selectedRegion],
+  );
 
   return {
     events: withStatus,
@@ -243,10 +383,16 @@ export function useConsole() {
     risk,
     facilities,
     health,
+    regions,
+    selectedRegion,
+    setSelectedRegion,
+    currentRegionInfo,
+    dataAsOf,
+    apiError,
     link,
     loading,
     lastSync,
-    stale,
+    stale: false,
     stats,
     filters,
     setFilters,
@@ -257,7 +403,7 @@ export function useConsole() {
     setStatus,
     replay,
     toggleReplay,
-    reload: load,
+    reload: () => load(selectedRegion),
   };
 }
 
