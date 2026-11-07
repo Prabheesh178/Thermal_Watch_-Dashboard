@@ -1,4 +1,4 @@
-import type { EventType, Priority } from './types';
+import type { CanonicalEventType, DemoEventType, EventType, Priority } from './types';
 
 /** Continuous severity ramp: cold slate -> ice -> amber -> ember -> crimson. */
 export function severityColor(severity: number): string {
@@ -31,14 +31,89 @@ export interface TypeMeta {
   blurb: string;
 }
 
+/**
+ * Canonical 7 classes used in live mode when connected to the Model API.
+ */
+export const CANONICAL_EVENT_TYPES: CanonicalEventType[] = [
+  'industrial_accident',
+  'industrial_flare',
+  'stockpile_combustion',
+  'wildfire',
+  'agricultural_burn',
+  'known_false_positive',
+  'unknown_source',
+];
+
+/**
+ * Legacy 6 class names retained strictly for the offline demo snapshot (`snapshot.json`).
+ */
+export const DEMO_EVENT_TYPES: DemoEventType[] = [
+  'industrial_incident',
+  'persistent_flare',
+  'wildfire',
+  'agricultural_burn',
+  'known_false_positive',
+  'unknown_source',
+];
+
 /** Every enum handled explicitly. Unknown values render a visible "unrecognised" state. */
 export const TYPE_META: Record<EventType, TypeMeta> = {
-  industrial_incident: { label: 'Industrial Incident', glyph: '◈', accent: '#FF3B4E', blurb: 'Off-baseline heat at a mapped plant' },
-  persistent_flare: { label: 'Persistent Flare', glyph: '▲', accent: '#FBBF24', blurb: 'Routine industrial burn-off, suppressed' },
-  wildfire: { label: 'Wildfire', glyph: '❋', accent: '#FF6B2C', blurb: 'Spreading vegetation fire' },
-  agricultural_burn: { label: 'Agricultural Burn', glyph: '≋', accent: '#34D399', blurb: 'Seasonal crop residue burning' },
-  known_false_positive: { label: 'Known False Positive', glyph: '⊘', accent: '#64748B', blurb: 'Catalogued reflector — scored to zero' },
-  unknown_source: { label: 'Unknown Source', glyph: '◎', accent: '#C084FC', blurb: 'Thermal signature with no mapped facility' },
+  // Canonical 7 model classes
+  industrial_accident: {
+    label: 'Industrial Accident',
+    glyph: '◈',
+    accent: '#FF3B4E',
+    blurb: 'Off-baseline emergency heat at a mapped plant',
+  },
+  industrial_flare: {
+    label: 'Industrial Flare',
+    glyph: '▲',
+    accent: '#FBBF24',
+    blurb: 'Routine industrial burn-off within facility baseline',
+  },
+  stockpile_combustion: {
+    label: 'Stockpile Combustion',
+    glyph: '◆',
+    accent: '#F97316',
+    blurb: 'Sustained coal, sulphur, or solid-waste stockpile fire',
+  },
+  wildfire: {
+    label: 'Wildfire',
+    glyph: '❋',
+    accent: '#FF6B2C',
+    blurb: 'Spreading forest or vegetation fire',
+  },
+  agricultural_burn: {
+    label: 'Agricultural Burn',
+    glyph: '≋',
+    accent: '#34D399',
+    blurb: 'Seasonal crop residue burning',
+  },
+  known_false_positive: {
+    label: 'Known False Positive',
+    glyph: '⊘',
+    accent: '#64748B',
+    blurb: 'Catalogued solar or industrial reflector — scored to zero',
+  },
+  unknown_source: {
+    label: 'Unknown Source',
+    glyph: '◎',
+    accent: '#C084FC',
+    blurb: 'Thermal signature with no mapped facility',
+  },
+  // Legacy aliases for offline demo mode only
+  industrial_incident: {
+    label: 'Industrial Incident',
+    glyph: '◈',
+    accent: '#FF3B4E',
+    blurb: 'Off-baseline heat at a mapped plant',
+  },
+  persistent_flare: {
+    label: 'Persistent Flare',
+    glyph: '▲',
+    accent: '#FBBF24',
+    blurb: 'Routine industrial burn-off, suppressed',
+  },
 };
 
 export function typeMeta(type: string): TypeMeta {

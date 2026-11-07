@@ -4,7 +4,9 @@ export const nf = (v: number, digits = 1) =>
 export const int = (v: number) => Math.round(v).toLocaleString('en-IN');
 
 export function timeAgo(iso: string, now = Date.now()): string {
-  const diff = Math.max(0, now - new Date(iso).getTime());
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return iso;
+  const diff = Math.max(0, now - ts);
   const m = Math.floor(diff / 60000);
   if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
@@ -14,10 +16,22 @@ export function timeAgo(iso: string, now = Date.now()): string {
   return `${d}d ago`;
 }
 
-export const hoursSince = (iso: string) => (Date.now() - new Date(iso).getTime()) / 3600_000;
+/**
+ * Computes elapsed hours between `iso` and a reference timestamp (`referenceIso` = `data_as_of`
+ * from `/health` or max `last_seen` in the snapshot). Never compares historical snapshots
+ * against wall-clock `Date.now()` when a dataset reference timestamp is available.
+ */
+export const hoursSince = (iso: string, referenceIso?: string | null): number => {
+  const targetMs = new Date(iso).getTime();
+  if (Number.isNaN(targetMs)) return 0;
+  const refMs = referenceIso ? new Date(referenceIso).getTime() : Date.now();
+  const baseMs = Number.isNaN(refMs) ? Date.now() : refMs;
+  return Math.max(0, (baseMs - targetMs) / 3600_000);
+};
 
 export function utc(iso: string): string {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
   return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 19)}Z`;
 }
 
