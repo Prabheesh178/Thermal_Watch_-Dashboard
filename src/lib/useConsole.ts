@@ -83,7 +83,7 @@ export function useConsole() {
   const [facilities, setFacilities] = useState<any>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [regions, setRegions] = useState<RegionInfo[]>(DEFAULT_REGIONS);
-  const [selectedRegion, setSelectedRegion] = useState<string>('gujarat');
+  const [selectedRegion, setSelectedRegion] = useState<string>('all_india');
   const [link, setLink] = useState<LinkState>('connecting');
   const [apiError, setApiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
