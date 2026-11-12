@@ -132,8 +132,9 @@ export const BASEMAPS: Basemap[] = [
   },
 ];
 
-/** Imagery + labels reads instantly at national zoom, so the console opens on it. */
-export const DEFAULT_BASEMAP = BASEMAPS.find((b) => b.id === 'hybrid') ?? BASEMAPS[0];
+/** Obsidian dark vector reads instantly at national zoom without any API key or watermark. */
+export const DEFAULT_BASEMAP = BASEMAPS.find((b) => b.id === 'obsidian') ?? BASEMAPS[0];
+
 
 /**
  * Recolour a CARTO vector style into the console palette: deep navy water, a graphite

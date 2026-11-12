@@ -19,19 +19,19 @@ const envMeta = (typeof import.meta !== 'undefined' && (import.meta as any).env)
 
 /**
  * Base URL of the FastAPI backend, configured via VITE_API_URL (or VITE_API_BASE).
+ * Defaults directly to your live production Render deployment.
  */
 export const API_BASE: string = (
   envMeta.VITE_API_URL ||
   envMeta.VITE_API_BASE ||
-  'http://localhost:8000'
+  'https://thermal-watch-model.onrender.com'
 ).replace(/\/+$/, '');
 
 /**
- * Hosted production build with no API URL configured at all falls back to demo mode immediately.
+ * Never force demo mode when a valid API_BASE exists.
  */
-export const DEMO_MODE: boolean = Boolean(
-  envMeta.PROD && !envMeta.VITE_API_URL && !envMeta.VITE_API_BASE,
-);
+export const DEMO_MODE: boolean = false;
+
 
 const snap = snapshot as unknown as {
   generated_at: string;
@@ -600,8 +600,8 @@ export async function fetchEvents(
   const q = new URLSearchParams();
   if (params.region) q.set('region', params.region);
   else if (params.bbox) q.set('bbox', params.bbox);
-  // Request a wide lookback from the API so client-side window pills (6h/24h/48h/7d) filter relative to data_as_of
-  q.set('since_hours', String(params.sinceHours ?? 24 * 365));
+  // Request a 7-day lookback (168h) matching the dashboard's max window filter relative to data_as_of
+  q.set('since_hours', String(params.sinceHours ?? 168));
 
   const rawList = await getJson<ApiHotspotResponse[]>(`/hotspots?${q.toString()}`, {
     timeoutMs: DISPLAY_THRESHOLDS.API_COLD_START_TIMEOUT_MS,
