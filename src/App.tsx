@@ -24,7 +24,7 @@ import {
   MobileTopBar,
 } from './components/MobileShell';
 import type { SheetSnap } from './components/BottomSheet';
-import { DEMO_MODE } from './lib/api';
+import { DEMO_MODE, API_BASE } from './lib/api';
 
 const SCENARIOS = [
   { id: 'evt_jamnagar_incident_02', label: 'Jamnagar 11.3σ', tone: '#FF3B4E', zoom: 10.5 },
@@ -232,14 +232,12 @@ export default function App() {
             </span>
             <span className="truncate font-mono text-[10px] text-slate-400">
               {state.apiError
-                ? `(${state.apiError})`
-                : `Showing bundled demo snapshot (${state.events.length} events). Set VITE_API_URL to connect to the FastAPI model backend.`}
+                ? `Connection error: ${state.apiError} · (${API_BASE})`
+                : `Target: ${API_BASE} · Bundled fallback active (${state.events.length} events)`}
             </span>
-            {!DEMO_MODE && (
-              <button onClick={() => void state.reload()} className="btn-glass ml-auto shrink-0 !py-1">
-                Retry link
-              </button>
-            )}
+            <button onClick={() => void state.reload()} className="btn-glass ml-auto shrink-0 !py-1">
+              Retry link
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -295,34 +293,32 @@ export default function App() {
             </div>
           </div>
 
-          {/* left dock — every panel folds into its own labelled tab */}
-          <div className="pointer-events-none absolute bottom-5 left-3 top-[152px] z-10 flex flex-col justify-between">
-            <div className="space-y-2.5">
-              <DockPanel id="layers" label="Layers" icon={<Layers size={13} />} tone="#22D3EE">
-                <LayerDock
-                  layers={layers}
-                  onChange={setLayers}
-                  hasRiskLayer={Boolean(state.risk)}
-                />
-              </DockPanel>
-              <DockPanel
-                id="mix"
-                label="Class mix"
-                icon={<PieChart size={13} />}
-                tone="#C084FC"
-                defaultOpen={false}
-              >
-                <ClassMix state={state} />
-              </DockPanel>
-            </div>
-            <div className="space-y-2.5">
-              <DockPanel id="legend" label="Severity" icon={<Thermometer size={13} />} tone="#FF6B2C">
-                <Legend />
-              </DockPanel>
-              <div className="pointer-events-auto pl-[36px]">
-                <BasemapSwitcher active={basemap} onChange={setBasemap} />
-              </div>
-            </div>
+          {/* left dock — collapsible panel stack with clean clearance */}
+          <div className="pointer-events-none absolute bottom-[92px] left-3 top-[148px] z-10 flex flex-col justify-start gap-2.5 overflow-visible">
+            <DockPanel id="layers" label="Layers" icon={<Layers size={13} />} tone="#22D3EE">
+              <LayerDock
+                layers={layers}
+                onChange={setLayers}
+                hasRiskLayer={Boolean(state.risk)}
+              />
+            </DockPanel>
+            <DockPanel
+              id="mix"
+              label="Class mix"
+              icon={<PieChart size={13} />}
+              tone="#C084FC"
+              defaultOpen={false}
+            >
+              <ClassMix state={state} />
+            </DockPanel>
+            <DockPanel id="legend" label="Severity" icon={<Thermometer size={13} />} tone="#FF6B2C" defaultOpen={false}>
+              <Legend />
+            </DockPanel>
+          </div>
+
+          {/* Floating standalone Basemap Switcher in bottom-left corner — always completely visible */}
+          <div className="pointer-events-auto absolute bottom-3.5 left-3.5 z-20">
+            <BasemapSwitcher active={basemap} onChange={setBasemap} />
           </div>
 
           {/* replay progress (demo mode only) */}

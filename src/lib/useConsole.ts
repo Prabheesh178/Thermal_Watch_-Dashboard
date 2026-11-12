@@ -162,7 +162,9 @@ export function useConsole() {
         setFacilities(fac);
         setLink('live');
         setLastSync(h.data_as_of || new Date().toISOString());
+        console.log(`[ThermalWatch] Successfully connected to API. Loaded ${evts.length} events from ${h.data_as_of}`);
       } catch (err: any) {
+        console.error('[ThermalWatch] API connection failed:', err);
         setApiError(err?.message ? String(err.message) : 'API unreachable');
         setEvents(cached.events());
         setRisk(cached.risk());
