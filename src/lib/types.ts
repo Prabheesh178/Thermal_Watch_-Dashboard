@@ -193,6 +193,8 @@ export interface Health {
   engine: string;
   server_time: string;
   data_as_of?: string | null;
+  last_refresh_at?: string | null;
+  refresh_status?: string;
   error?: string | null;
   missing_artifacts?: string[];
   active_events_count: number;

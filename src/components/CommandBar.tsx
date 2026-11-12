@@ -87,7 +87,9 @@ export default function CommandBar({
         </span>
         <span className="hidden font-mono text-[9px] uppercase tracking-[0.26em] text-slate-500 md:block">
           {link === 'live'
-            ? `National Technical Research Organisation · Smart India Hackathon 26162 · Data as of ${dataAsOf ? utc(dataAsOf) : '—'}`
+            ? health?.mode === 'live'
+              ? `National Technical Research Organisation · Smart India Hackathon 26162 · Live, updated ${health?.last_refresh_at ? utc(health.last_refresh_at) : 'recently'}${health?.refresh_status && health.refresh_status !== 'ok' ? ` [REFRESH: ${health.refresh_status}]` : ''}`
+              : `National Technical Research Organisation · Smart India Hackathon 26162 · Snapshot, data as of ${dataAsOf ? utc(dataAsOf) : '—'}`
             : link === 'waking'
               ? 'National Technical Research Organisation · Smart India Hackathon 26162 · Waking the API...'
               : 'National Technical Research Organisation · Smart India Hackathon 26162 · Demo data, API not connected'}
@@ -219,6 +221,14 @@ export default function CommandBar({
             <span className={`font-mono text-[10px] uppercase tracking-[0.14em] ${linkTone.text}`}>
               {linkTone.label}
             </span>
+            {health?.mode === 'live' && (
+              <>
+                <span className="h-3 w-px bg-white/10" />
+                <span className="font-mono text-[10px] text-neon-mint" title="Automated background FIRMS refresh is active">
+                  LIVE NRT
+                </span>
+              </>
+            )}
             {dataAsOf && (
               <>
                 <span className="h-3 w-px bg-white/10" />
@@ -226,7 +236,15 @@ export default function CommandBar({
                   className="font-mono text-[10px] text-slate-300"
                   title="Dataset acquisition currency timestamp from /health"
                 >
-                  Data as of {utc(dataAsOf)}
+                  {health?.mode === 'live' ? `Data as of ${utc(dataAsOf)}` : `Snapshot as of ${utc(dataAsOf)}`}
+                </span>
+              </>
+            )}
+            {health?.refresh_status && health.refresh_status.startsWith('failed') && (
+              <>
+                <span className="h-3 w-px bg-white/10" />
+                <span className="font-mono text-[10px] text-neon-ember" title={health.refresh_status}>
+                  ⚠️ {health.refresh_status}
                 </span>
               </>
             )}

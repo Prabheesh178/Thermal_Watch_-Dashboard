@@ -130,9 +130,12 @@ export interface ApiFacilityHistoryResponse {
 
 export interface ApiHealthResponse {
   status: string;
+  mode?: string;
   error?: string | null;
   missing_artifacts?: string[];
   data_as_of?: string | null;
+  last_refresh_at?: string | null;
+  refresh_status?: string;
   active_events_count: number;
   model_artifacts?: Record<string, ArtifactInfo>;
 }
@@ -260,10 +263,12 @@ export function adaptHealthResponse(raw: ApiHealthResponse): Health {
   }
   return {
     status: raw.status,
-    mode: 'snapshot',
+    mode: raw.mode || 'snapshot',
     engine: 'LightGBM + Robust MAD + ScoreCombiner',
     server_time: raw.data_as_of || new Date().toISOString(),
     data_as_of: raw.data_as_of ?? null,
+    last_refresh_at: raw.last_refresh_at ?? null,
+    refresh_status: raw.refresh_status ?? 'ok',
     error: raw.error ?? null,
     missing_artifacts: raw.missing_artifacts ?? [],
     active_events_count: raw.active_events_count ?? 0,
