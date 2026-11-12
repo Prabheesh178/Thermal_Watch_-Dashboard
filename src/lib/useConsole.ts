@@ -132,10 +132,9 @@ export function useConsole() {
       };
 
       try {
-        const [h, regList, fac] = await Promise.all([
+        const [h, regList] = await Promise.all([
           fetchHealth(handleWaking),
           fetchRegions().catch(() => DEFAULT_REGIONS),
-          fetchFacilities().catch(() => ({ type: 'FeatureCollection', features: [] })),
         ]);
 
         if (regList && regList.length > 0) {
@@ -159,10 +158,16 @@ export function useConsole() {
         setEvents(evts);
         // Decision B.2: Skip /risk when connected to real API; hide that map layer when absent.
         setRisk(null);
-        setFacilities(fac);
         setLink('live');
         setLastSync(h.data_as_of || new Date().toISOString());
         console.log(`[ThermalWatch] Successfully connected to API. Loaded ${evts.length} events from ${h.data_as_of}`);
+
+        // Asynchronously load facilities in background without blocking initial connection
+        fetchFacilities()
+          .then((fac) => {
+            if (fac) setFacilities(fac);
+          })
+          .catch(() => {});
       } catch (err: any) {
         console.error('[ThermalWatch] API connection failed:', err);
         setApiError(err?.message ? String(err.message) : 'API unreachable');

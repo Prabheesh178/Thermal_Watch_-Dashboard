@@ -52,7 +52,7 @@ export const DISPLAY_THRESHOLDS = {
   /**
    * Cold-start timeout and waking indicator timings for Render free-tier instances.
    */
-  API_WAKING_NOTICE_MS: 2500,
+  API_WAKING_NOTICE_MS: 6000,
   API_COLD_START_TIMEOUT_MS: 55000,
   API_POLL_INTERVAL_MS: 30000,
 } as const

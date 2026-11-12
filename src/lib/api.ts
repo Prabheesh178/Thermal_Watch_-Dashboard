@@ -620,8 +620,8 @@ export async function fetchEvents(
   const q = new URLSearchParams();
   if (params.region) q.set('region', params.region);
   else if (params.bbox) q.set('bbox', params.bbox);
-  // Request a 7-day lookback (168h) matching the dashboard's max window filter relative to data_as_of
-  q.set('since_hours', String(params.sinceHours ?? 168));
+  // Request an initial 48h lookback for fast first-render (< 2.5s) on Render free tier
+  q.set('since_hours', String(params.sinceHours ?? 48));
 
   const rawList = await getJson<ApiHotspotResponse[]>(`/hotspots?${q.toString()}`, {
     timeoutMs: DISPLAY_THRESHOLDS.API_COLD_START_TIMEOUT_MS,
