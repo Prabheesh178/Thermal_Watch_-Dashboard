@@ -18,5 +18,11 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/backend/:match*",
+      "destination": "https://thermal-watch-model.onrender.com/:match*"
+    }
   ]
 }

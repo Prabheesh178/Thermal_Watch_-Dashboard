@@ -235,9 +235,20 @@ export default function App() {
                 ? `Connection error: ${state.apiError} · (${API_BASE})`
                 : `Target: ${API_BASE} · Bundled fallback active (${state.events.length} events)`}
             </span>
-            <button onClick={() => void state.reload()} className="btn-glass ml-auto shrink-0 !py-1">
-              Retry link
-            </button>
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              <a
+                href="https://thermal-watch-model.onrender.com/health"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-glass !py-1 text-[10px] text-neon-cyan hover:underline"
+                title="Open the Render backend directly in a new tab"
+              >
+                Test API directly ↗
+              </a>
+              <button onClick={() => void state.reload()} className="btn-glass !py-1">
+                Retry link
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

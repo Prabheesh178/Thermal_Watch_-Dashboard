@@ -552,21 +552,41 @@ async function getJson<T>(
     }, DISPLAY_THRESHOLDS.API_WAKING_NOTICE_MS);
   }
 
+  // Dual-target resilience: on Vercel, try same-origin proxy (/api/backend) first,
+  // then direct Render backend. This bypasses ad-blockers and browser CORS restrictions.
+  const targets: string[] = [];
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    targets.push(`/api/backend${path}`);
+  }
+  targets.push(`${API_BASE}${path}`);
+  if (!targets.includes(`https://thermal-watch-model.onrender.com${path}`)) {
+    targets.push(`https://thermal-watch-model.onrender.com${path}`);
+  }
+
+  let lastError: any = null;
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) {
-      let detail = `${res.status}`;
+    for (const url of targets) {
       try {
-        const errBody = await res.json();
-        if (errBody?.detail) detail = String(errBody.detail);
-      } catch {
-        // ignore JSON parse failure
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (!res.ok) {
+          let detail = `${res.status}`;
+          try {
+            const errBody = await res.json();
+            if (errBody?.detail) detail = String(errBody.detail);
+          } catch {
+            // ignore JSON parse failure
+          }
+          throw new Error(`${url} -> ${detail}`);
+        }
+        return (await res.json()) as T;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[ThermalWatch] Fetch failed for ${url}:`, err);
       }
-      throw new Error(`${path} -> ${detail}`);
     }
-    return (await res.json()) as T;
+    throw lastError || new Error(`${path} -> Failed to fetch`);
   } finally {
     if (wakingTimer) clearTimeout(wakingTimer);
   }
