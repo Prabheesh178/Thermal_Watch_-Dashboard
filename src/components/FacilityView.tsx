@@ -16,7 +16,7 @@ import { Building2, Gauge, X } from 'lucide-react';
 import { cached, fetchFacilityHistory } from '../lib/api';
 import type { EventSummary, FacilitySeries } from '../lib/types';
 import { severityColor, typeMeta } from '../lib/design';
-import { nf, timeAgo } from '../lib/format';
+import { nf, timeAgo, utc } from '../lib/format';
 
 /**
  * PRD screen 4. Opened from the drawer's facility line: the site's own FRP history with its
@@ -245,7 +245,7 @@ export default function FacilityView({
                             {e.inferred.severity}
                           </span>
                           <span className="min-w-0 flex-1 truncate text-[10.5px] text-slate-300">{meta.label}</span>
-                          <span className="font-mono text-[9px] text-slate-500">{timeAgo(e.last_seen)}</span>
+                          <span className="font-mono text-[9px] text-slate-500 cursor-help" title={utc(e.last_seen)}>{timeAgo(e.last_seen, Date.now())}</span>
                         </button>
                       );
                     })}

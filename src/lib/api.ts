@@ -552,15 +552,19 @@ async function getJson<T>(
     }, DISPLAY_THRESHOLDS.API_WAKING_NOTICE_MS);
   }
 
-  // Dual-target resilience: on Vercel, try same-origin proxy (/api/backend) first,
-  // then direct Render backend. This bypasses ad-blockers and browser CORS restrictions.
+  // Dual-target resilience: try same-origin proxy (/api/backend) first,
+  // which works both on Vercel and local Vite dev, then direct Render backend.
+  // This bypasses browser ad-blockers, network firewalls, and CORS restrictions.
   const targets: string[] = [];
-  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+  if (typeof window !== 'undefined') {
     targets.push(`/api/backend${path}`);
   }
-  targets.push(`${API_BASE}${path}`);
-  if (!targets.includes(`https://thermal-watch-model.onrender.com${path}`)) {
-    targets.push(`https://thermal-watch-model.onrender.com${path}`);
+  if (!targets.includes(`${API_BASE}${path}`)) {
+    targets.push(`${API_BASE}${path}`);
+  }
+  const directRender = `https://thermal-watch-model.onrender.com${path}`;
+  if (!targets.includes(directRender)) {
+    targets.push(directRender);
   }
 
   let lastError: any = null;

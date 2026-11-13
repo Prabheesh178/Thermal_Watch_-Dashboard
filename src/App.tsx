@@ -209,7 +209,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Offline / demo fallback banner — Decision B.8: must read "Demo data, API not connected" */}
+      {/* Offline / demo fallback banner — Decision B.8: clearly shows live backend link state */}
       <AnimatePresence>
         {state.link === 'cached' && (
           <motion.div
@@ -219,21 +219,23 @@ export default function App() {
             className={`relative z-20 flex items-center gap-2 border-b px-4 py-1.5 backdrop-blur-xl ${
               DEMO_MODE
                 ? 'border-neon-ice/25 bg-neon-ice/[0.07]'
-                : 'border-neon-ember/25 bg-neon-ember/[0.08]'
+                : 'border-neon-amber/25 bg-neon-amber/[0.08]'
             }`}
           >
-            <CloudOff size={12} className={DEMO_MODE ? 'text-neon-ice' : 'text-neon-ember'} />
+            <RefreshCw size={12} className={DEMO_MODE ? 'text-neon-ice' : 'animate-spin text-neon-amber'} />
             <span
-              className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
-                DEMO_MODE ? 'text-neon-ice' : 'text-neon-ember'
+              className={`font-mono text-[10px] uppercase tracking-[0.14em] font-semibold ${
+                DEMO_MODE ? 'text-neon-ice' : 'text-neon-amber'
               }`}
             >
-              Demo data, API not connected
+              {DEMO_MODE ? 'Demo data (Offline Mode)' : 'Connecting to Backend...'}
             </span>
-            <span className="truncate font-mono text-[10px] text-slate-400">
-              {state.apiError
-                ? `Connection error: ${state.apiError} · (${API_BASE})`
-                : `Target: ${API_BASE} · Bundled fallback active (${state.events.length} events)`}
+            <span className="truncate font-mono text-[10px] text-slate-300">
+              {DEMO_MODE
+                ? `Bundled demo snapshot active (${state.events.length} events)`
+                : state.apiError
+                  ? `Render API spin-up in progress (${state.apiError}) · Auto-reconnecting in background...`
+                  : `Connecting to ${API_BASE} · Auto-reconnecting...`}
             </span>
             <div className="ml-auto flex items-center gap-2 shrink-0">
               <a
@@ -245,8 +247,11 @@ export default function App() {
               >
                 Test API directly ↗
               </a>
-              <button onClick={() => void state.reload()} className="btn-glass !py-1">
-                Retry link
+              <button
+                onClick={() => void state.reload()}
+                className="btn-glass !py-1 text-[10px] text-neon-amber border-neon-amber/30 hover:border-neon-amber/60"
+              >
+                Retry link now
               </button>
             </div>
           </motion.div>
@@ -304,8 +309,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* left dock — collapsible panel stack with clean clearance */}
-          <div className="pointer-events-none absolute bottom-[92px] left-3 top-[148px] z-10 flex flex-col justify-start gap-2.5 overflow-visible">
+          {/* left dock — collapsible panel stack with strict clearance so it never covers basemap controls */}
+          <div className="pointer-events-none absolute bottom-[96px] left-3 top-[148px] z-10 flex max-h-[calc(100vh-250px)] flex-col justify-start gap-2.5 overflow-y-auto overflow-x-visible pr-1 scrollbar-none">
             <DockPanel id="layers" label="Layers" icon={<Layers size={13} />} tone="#22D3EE">
               <LayerDock
                 layers={layers}
@@ -327,8 +332,8 @@ export default function App() {
             </DockPanel>
           </div>
 
-          {/* Floating standalone Basemap Switcher in bottom-left corner — always completely visible */}
-          <div className="pointer-events-auto absolute bottom-3.5 left-3.5 z-20">
+          {/* Floating standalone Basemap Switcher in bottom-left corner — always completely visible and elevated */}
+          <div className="pointer-events-auto absolute bottom-4 left-3.5 z-30">
             <BasemapSwitcher active={basemap} onChange={setBasemap} />
           </div>
 

@@ -149,7 +149,6 @@ function DrawerBody({
       `MODEL INFERENCE (inferred)`,
       `  class             ${meta.label} @ ${pct(inf.event_type_confidence)} confidence`,
       `  anomaly           ${inf.anomaly_z > 0 ? '+' : ''}${inf.anomaly_z.toFixed(1)} sigma vs own baseline`,
-      `  24h escalation    ${inf.risk_24h === null ? 'not available (Model C)' : pct(inf.risk_24h)}`,
       `  severity          ${inf.severity}/100 · priority ${inf.priority}`,
       `  assessment        ${inf.explanation}`,
       `  models            ${inf.model_version}`,
@@ -190,7 +189,7 @@ function DrawerBody({
               <span>·</span>
               <span>{coords(detail.centroid.lat, detail.centroid.lon)}</span>
               <span>·</span>
-              <span>{timeAgo(detail.last_seen, referenceNowMs)}</span>
+              <span className="cursor-help" title={utc(detail.last_seen)}>{timeAgo(detail.last_seen, Date.now())}</span>
               <span>·</span>
               <span className={detail.status === 'acknowledged' ? 'text-neon-mint' : 'text-slate-500'}>{detail.status}</span>
             </div>
@@ -291,19 +290,12 @@ function DrawerBody({
             </span>
           </header>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <InferredMetric
               label="Anomaly"
               value={`${inf.anomaly_z > 0 ? '+' : ''}${inf.anomaly_z.toFixed(1)}σ`}
               note={inf.anomaly_flag ? 'above own baseline' : 'within baseline'}
               tone={inf.anomaly_flag ? '#FF6B2C' : '#94A3B8'}
-            />
-            <InferredMetric
-              label="24 h escalation"
-              value={inf.risk_24h === null ? 'n/a' : pct(inf.risk_24h)}
-              note={inf.risk_24h === null ? 'Model C not available' : 'probability of growth'}
-              tone={inf.risk_24h === null ? '#64748B' : '#38BDF8'}
-              muted={inf.risk_24h === null}
             />
             <InferredMetric
               label="Novelty"

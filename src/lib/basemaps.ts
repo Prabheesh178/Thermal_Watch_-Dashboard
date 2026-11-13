@@ -26,9 +26,8 @@ export interface Basemap {
 }
 
 const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-const CARTO_ATTR = `${OSM_ATTR} &copy; <a href="https://carto.com/attributions">CARTO</a>`;
 const ESRI_ATTR =
-  'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics, GIS User Community';
+  'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, DeLorme, NAVTEQ, TomTom, &copy; OpenStreetMap contributors';
 
 function rasterStyle(
   tiles: string[],
@@ -58,22 +57,33 @@ function rasterStyle(
   return style;
 }
 
-const cartoRaster = (name: string) => [
-  `https://a.basemaps.cartocdn.com/${name}/{z}/{x}/{y}@2x.png`,
-  `https://b.basemaps.cartocdn.com/${name}/{z}/{x}/{y}@2x.png`,
-  `https://c.basemaps.cartocdn.com/${name}/{z}/{x}/{y}@2x.png`,
+const ESRI_DARK_GRAY_BASE = [
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
 ];
-
-const ESRI_IMAGERY = ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'];
+const ESRI_DARK_GRAY_REF = [
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+];
+const ESRI_IMAGERY = [
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+];
+const ESRI_BOUNDARIES = [
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+];
+const OSM_TILES = [
+  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+];
 
 export const BASEMAPS: Basemap[] = [
   {
     id: 'obsidian',
     label: 'Obsidian',
-    hint: 'Dark canvas — default operating picture',
+    hint: 'Dark canvas — default operating picture (clean, watermark-free)',
     swatch: 'linear-gradient(135deg,#0b1018,#1b2434 60%,#0a3b45)',
-    style: rasterStyle(cartoRaster('dark_all'), CARTO_ATTR),
-    fallback: rasterStyle(cartoRaster('dark_all'), CARTO_ATTR),
+    style: rasterStyle(ESRI_DARK_GRAY_BASE, ESRI_ATTR, {
+      tiles: ESRI_DARK_GRAY_REF,
+      attribution: ESRI_ATTR,
+    }),
+    fallback: rasterStyle(ESRI_DARK_GRAY_BASE, ESRI_ATTR),
     dim: 0,
     tint: false,
   },
@@ -89,11 +99,11 @@ export const BASEMAPS: Basemap[] = [
   {
     id: 'hybrid',
     label: 'Hybrid',
-    hint: 'Imagery with place names and roads',
+    hint: 'Imagery with place names and borders',
     swatch: 'linear-gradient(135deg,#2a3a24,#556236 45%,#9aa3ad)',
     style: rasterStyle(ESRI_IMAGERY, ESRI_ATTR, {
-      tiles: cartoRaster('dark_only_labels'),
-      attribution: CARTO_ATTR,
+      tiles: ESRI_BOUNDARIES,
+      attribution: ESRI_ATTR,
     }),
     dim: 0.14,
     filter: 'brightness(0.58) saturate(0.72) contrast(1.12)',
@@ -113,20 +123,30 @@ export const BASEMAPS: Basemap[] = [
   {
     id: 'streets',
     label: 'Streets',
-    hint: 'CARTO Voyager — infrastructure detail',
+    hint: 'OpenStreetMap — infrastructure detail',
     swatch: 'linear-gradient(135deg,#dfe6ee,#b9c6d4 55%,#8fa4b8)',
-    style: rasterStyle(cartoRaster('rastertiles/voyager'), CARTO_ATTR),
-    fallback: rasterStyle(cartoRaster('rastertiles/voyager'), CARTO_ATTR),
-    dim: 0.34,
-    filter: 'brightness(0.82) saturate(0.75)',
+    style: rasterStyle(OSM_TILES, OSM_ATTR),
+    fallback: rasterStyle(OSM_TILES, OSM_ATTR),
+    dim: 0.25,
+    filter: 'brightness(0.85) saturate(0.75)',
   },
   {
     id: 'briefing',
     label: 'Briefing',
     hint: 'Light basemap for printed briefs',
     swatch: 'linear-gradient(135deg,#f2f5f8,#d8dfe6 55%,#aab6c2)',
-    style: rasterStyle(cartoRaster('light_all'), CARTO_ATTR),
-    fallback: rasterStyle(cartoRaster('light_all'), CARTO_ATTR),
+    style: rasterStyle(
+      ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
+      ESRI_ATTR,
+      {
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}'],
+        attribution: ESRI_ATTR,
+      },
+    ),
+    fallback: rasterStyle(
+      ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
+      ESRI_ATTR,
+    ),
     dim: 0.18,
     filter: 'brightness(0.94) saturate(0.7)',
   },

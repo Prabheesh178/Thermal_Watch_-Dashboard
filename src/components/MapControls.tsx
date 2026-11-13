@@ -18,22 +18,28 @@ export function BasemapSwitcher({
 
   return (
     <div className="pointer-events-auto flex items-end gap-2" onMouseLeave={() => setOpen(false)}>
-      <button
-        onMouseEnter={() => setOpen(true)}
-        onClick={() => setOpen((v) => !v)}
-        className="group relative h-[68px] w-[92px] overflow-hidden rounded-xl border border-white/15 shadow-glass transition
-                   hover:border-neon-cyan/45"
-        style={{ background: active.swatch }}
-        title={active.hint}
-      >
-        <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-        <span className="absolute bottom-1 left-0 right-0 text-center font-mono text-[9.5px] uppercase tracking-[0.14em] text-white">
-          {active.label}
+      <div className="flex flex-col gap-1">
+        <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-slate-400 pl-1 font-semibold">
+          Map Style
         </span>
-        <span className="absolute left-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-md bg-black/45 text-white/80 backdrop-blur">
-          <MapIcon size={11} />
-        </span>
-      </button>
+        <button
+          onMouseEnter={() => setOpen(true)}
+          onClick={() => setOpen((v) => !v)}
+          className="group relative h-[68px] w-[96px] overflow-hidden rounded-xl border border-white/20 shadow-glass transition
+                     hover:border-neon-cyan/60 hover:shadow-[0_0_20px_-4px_rgba(34,211,238,0.5)] focus:outline-none"
+          style={{ background: active.swatch }}
+          title={`${active.hint} (Click to change map view)`}
+        >
+          <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          <span className="absolute bottom-1.5 left-0 right-0 text-center font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white">
+            {active.label}
+          </span>
+          <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1 py-0.5 text-white/90 backdrop-blur">
+            <MapIcon size={10} className="text-neon-cyan" />
+            <span className="text-[8px] font-mono tracking-wider">CHANGE</span>
+          </span>
+        </button>
+      </div>
 
       <AnimatePresence>
         {open && (

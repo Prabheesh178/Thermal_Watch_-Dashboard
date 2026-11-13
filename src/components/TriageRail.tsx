@@ -10,7 +10,7 @@ import {
   severityColor,
   typeMeta,
 } from '../lib/design';
-import { nf, timeAgo } from '../lib/format';
+import { nf, timeAgo, utc } from '../lib/format';
 
 const GROUPS: Priority[] = ['HIGH', 'MEDIUM', 'LOW'];
 const PAGE = 40;
@@ -28,7 +28,7 @@ export default function TriageRail({
   const [limit, setLimit] = useState(PAGE);
   const sentinel = useRef<HTMLDivElement | null>(null);
   const availableClasses = link === 'cached' ? DEMO_EVENT_TYPES : CANONICAL_EVENT_TYPES;
-  const referenceNowMs = dataAsOf ? new Date(dataAsOf).getTime() : Date.now();
+  const currentNowMs = Date.now();
 
   const grouped = useMemo(() => {
     const buckets: Record<Priority, EventSummary[]> = { HIGH: [], MEDIUM: [], LOW: [] };
@@ -249,7 +249,7 @@ export default function TriageRail({
                     <QueueRow
                       key={e.event_id}
                       event={e}
-                      referenceNowMs={referenceNowMs}
+                      nowMs={currentNowMs}
                       selected={selectedId === e.event_id}
                       onSelect={() => setSelectedId(e.event_id)}
                       onAck={() => setStatus(e.event_id, 'acknowledged')}
@@ -274,14 +274,14 @@ export default function TriageRail({
 
 function QueueRow({
   event,
-  referenceNowMs,
+  nowMs,
   selected,
   onSelect,
   onAck,
   onDismiss,
 }: {
   event: EventSummary;
-  referenceNowMs: number;
+  nowMs: number;
   selected: boolean;
   onSelect: () => void;
   onAck: () => void;
@@ -334,7 +334,9 @@ function QueueRow({
 
         <div className="shrink-0 text-right">
           <div className="metric text-[11.5px] text-slate-200">{nf(event.observed.frp_total_mw)} MW</div>
-          <div className="font-mono text-[9.5px] text-slate-600">{timeAgo(event.last_seen, referenceNowMs)}</div>
+          <div className="font-mono text-[9.5px] text-slate-500 cursor-help" title={utc(event.last_seen)}>
+            {timeAgo(event.last_seen, nowMs)}
+          </div>
         </div>
       </div>
 

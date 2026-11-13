@@ -198,6 +198,10 @@ export interface Health {
   error?: string | null;
   missing_artifacts?: string[];
   active_events_count: number;
+  data_age_hours?: number | null;
+  is_stale?: boolean;
+  live_coverage_regions?: string[];
+  uncovered_regions?: string[];
   model_versions: Record<string, string>;
   model_artifacts?: Record<string, ArtifactInfo>;
   firms_latency: string;

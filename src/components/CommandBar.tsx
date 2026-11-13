@@ -87,9 +87,11 @@ export default function CommandBar({
         </span>
         <span className="hidden font-mono text-[9px] uppercase tracking-[0.26em] text-slate-500 md:block">
           {link === 'live'
-            ? health?.mode === 'live'
-              ? `National Technical Research Organisation · Smart India Hackathon 26162 · Live, updated ${health?.last_refresh_at ? utc(health.last_refresh_at) : 'recently'}${health?.refresh_status && health.refresh_status !== 'ok' ? ` [REFRESH: ${health.refresh_status}]` : ''}`
-              : `National Technical Research Organisation · Smart India Hackathon 26162 · Snapshot, data as of ${dataAsOf ? utc(dataAsOf) : '—'}`
+            ? (health?.is_stale || health?.mode === 'live_stalled')
+              ? `National Technical Research Organisation · Smart India Hackathon 26162 · STALLED: newest detection ${health?.data_age_hours ? Math.max(1, Math.round(health.data_age_hours / 24)) : '—'} days old · Data as of ${dataAsOf ? utc(dataAsOf) : '—'}`
+              : health?.mode === 'live'
+                ? `National Technical Research Organisation · Smart India Hackathon 26162 · Live, updated ${health?.last_refresh_at ? utc(health.last_refresh_at) : 'recently'}${health?.refresh_status && health.refresh_status !== 'ok' ? ` [REFRESH: ${health.refresh_status}]` : ''}`
+                : `National Technical Research Organisation · Smart India Hackathon 26162 · Snapshot, data as of ${dataAsOf ? utc(dataAsOf) : '—'}`
             : link === 'waking'
               ? 'National Technical Research Organisation · Smart India Hackathon 26162 · Waking the API...'
               : 'National Technical Research Organisation · Smart India Hackathon 26162 · Demo data, API not connected'}
@@ -149,11 +151,15 @@ export default function CommandBar({
             className="max-w-[210px] cursor-pointer truncate bg-transparent font-mono text-[11px] text-slate-200 outline-none"
             title="Select Indian industrial region (/regions)"
           >
-            {regions.map((r) => (
-              <option key={r.name} value={r.name} className="bg-[#0B101B] text-slate-200">
-                {r.label}
-              </option>
-            ))}
+            {regions.map((r) => {
+              const liveList = health?.live_coverage_regions || ['gujarat', 'maharashtra', 'odisha', 'chhattisgarh_jharkhand'];
+              const isLive = liveList.includes(r.name);
+              return (
+                <option key={r.name} value={r.name} className="bg-[#0B101B] text-slate-200">
+                  {isLive ? '🟢 ' : '⚪ '}{r.label} {isLive ? '(LIVE NRT)' : '(SNAPSHOT ONLY)'}
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -221,14 +227,30 @@ export default function CommandBar({
             <span className={`font-mono text-[10px] uppercase tracking-[0.14em] ${linkTone.text}`}>
               {linkTone.label}
             </span>
-            {health?.mode === 'live' && (
+            {health && (health.is_stale || health.mode === 'live_stalled') ? (
+              <>
+                <span className="h-3 w-px bg-white/10" />
+                <span
+                  className="font-mono text-[10px] font-bold text-red-500"
+                  title={`Background ingestion stalled or newest detection >12h old (${health.data_age_hours ? health.data_age_hours.toFixed(1) : '?'}h old)`}
+                >
+                  STALLED: newest detection {
+                    health.data_age_hours !== undefined && health.data_age_hours !== null
+                      ? `${Math.max(1, Math.round(health.data_age_hours / 24))} days old`
+                      : dataAsOf
+                        ? `${Math.max(1, Math.round((Date.now() - new Date(dataAsOf).getTime()) / (1000 * 60 * 60 * 24)))} days old`
+                        : 'stale'
+                  }
+                </span>
+              </>
+            ) : health?.mode === 'live' ? (
               <>
                 <span className="h-3 w-px bg-white/10" />
                 <span className="font-mono text-[10px] text-neon-mint" title="Automated background FIRMS refresh is active">
                   LIVE NRT
                 </span>
               </>
-            )}
+            ) : null}
             {dataAsOf && (
               <>
                 <span className="h-3 w-px bg-white/10" />

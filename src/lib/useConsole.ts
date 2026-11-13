@@ -189,31 +189,105 @@ export function useConsole() {
   }, [load, selectedRegion]);
 
   /**
-   * Decision B.3: Poll `/hotspots` on an interval when connected to the real API.
-   * Never open EventSource(`/stream`) against the real API and never flip `link` to `'cached'` due to missing SSE.
+   * Auto-reconnection loop: When not yet live, automatically poll /health every 12s
+   * so the dashboard reconnects the instant Render finishes spinning up without requiring manual reload.
+   */
+  useEffect(() => {
+    if (link === 'live' || DEMO_MODE) return;
+
+    const retryTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      console.log('[ThermalWatch] Background auto-reconnect attempt...');
+      void load(selectedRegion);
+    }, 12000);
+
+    return () => clearInterval(retryTimer);
+  }, [link, load, selectedRegion]);
+
+  /**
+   * Round 3 requirement C:
+   * - /health every 60 s
+   * - /hotspots every REFRESH_MINUTES (minimum 5 minutes)
+   * - event detail and facility history only when an event is selected (handled below)
+   * - Pause polling when tab is hidden (via document visibilitychange).
    */
   useEffect(() => {
     if (link !== 'live') return;
-    const timer = setInterval(async () => {
+
+    let healthTimer: ReturnType<typeof setInterval> | null = null;
+    let hotspotsTimer: ReturnType<typeof setInterval> | null = null;
+
+    const pollHealth = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
-        const [h, evts] = await Promise.all([
-          fetchHealth(),
-          fetchEvents({
-            region: selectedRegion,
-            modelArtifactLabel,
-          }),
-        ]);
+        const h = await fetchHealth();
         if (h.status === 'ok') {
           setHealth(h);
-          setEvents(evts);
-          setLastSync(h.data_as_of || new Date().toISOString());
+          if (h.data_as_of) {
+            setLastSync(h.data_as_of);
+          }
         }
       } catch {
-        // Keep current live view on transient poll hiccup
+        // Keep current state on transient health poll hiccup
       }
-    }, DISPLAY_THRESHOLDS.API_POLL_INTERVAL_MS);
+    };
 
-    return () => clearInterval(timer);
+    const pollHotspots = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      try {
+        const evts = await fetchEvents({
+          region: selectedRegion,
+          modelArtifactLabel,
+        });
+        setEvents(evts);
+      } catch {
+        // Keep current live view on transient hotspots poll hiccup
+      }
+    };
+
+    const startTimers = () => {
+      if (healthTimer) clearInterval(healthTimer);
+      if (hotspotsTimer) clearInterval(hotspotsTimer);
+
+      const healthIntervalMs = 60_000; // 60 s
+      const envMinutes = Number(import.meta.env.VITE_REFRESH_MINUTES);
+      const configuredMinutes = Number.isFinite(envMinutes) && envMinutes > 0 ? envMinutes : 5;
+      const hotspotsIntervalMs = Math.max(5, configuredMinutes) * 60_000; // minimum 5 minutes
+
+      healthTimer = setInterval(() => void pollHealth(), healthIntervalMs);
+      hotspotsTimer = setInterval(() => void pollHotspots(), hotspotsIntervalMs);
+    };
+
+    const stopTimers = () => {
+      if (healthTimer) {
+        clearInterval(healthTimer);
+        healthTimer = null;
+      }
+      if (hotspotsTimer) {
+        clearInterval(hotspotsTimer);
+        hotspotsTimer = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined') return;
+      if (document.hidden) {
+        stopTimers();
+      } else {
+        // Tab became visible again — poll immediately, then resume interval timers
+        void pollHealth();
+        void pollHotspots();
+        startTimers();
+      }
+    };
+
+    startTimers();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      stopTimers();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [link, selectedRegion, modelArtifactLabel]);
 
   // Detail fetch, with the cached snapshot as fallback only in offline demo mode.
