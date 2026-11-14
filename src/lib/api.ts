@@ -137,6 +137,10 @@ export interface ApiHealthResponse {
   last_refresh_at?: string | null;
   refresh_status?: string;
   active_events_count: number;
+  data_age_hours?: number | null;
+  is_stale?: boolean;
+  live_coverage_regions?: string[];
+  uncovered_regions?: string[];
   model_artifacts?: Record<string, ArtifactInfo>;
 }
 
@@ -261,20 +265,48 @@ export function adaptHealthResponse(raw: ApiHealthResponse): Health {
       }
     }
   }
+
+  // Robust fallback: if backend is an older deployment lacking data_age_hours / is_stale,
+  // or reports mode: "live" while data_as_of is old (>24h), calculate elapsed age directly
+  // so the dashboard NEVER shows "LIVE" while data_as_of is old, and never crashes on missing fields.
+  const now = Date.now();
+  const dataAgeHours =
+    typeof raw.data_age_hours === 'number'
+      ? raw.data_age_hours
+      : raw.data_as_of
+        ? Math.max(0, (now - new Date(raw.data_as_of).getTime()) / (1000 * 60 * 60))
+        : null;
+
+  const isStale =
+    typeof raw.is_stale === 'boolean'
+      ? raw.is_stale
+      : dataAgeHours !== null
+        ? dataAgeHours > 24.0
+        : false;
+
+  const effectiveMode =
+    isStale && (raw.mode === 'live' || !raw.mode)
+      ? 'live_stalled'
+      : (raw.mode || 'snapshot');
+
   return {
     status: raw.status,
-    mode: raw.mode || 'snapshot',
+    mode: effectiveMode,
     engine: 'LightGBM + Robust MAD + ScoreCombiner',
     server_time: raw.data_as_of || new Date().toISOString(),
     data_as_of: raw.data_as_of ?? null,
     last_refresh_at: raw.last_refresh_at ?? null,
     refresh_status: raw.refresh_status ?? 'ok',
+    data_age_hours: dataAgeHours,
+    is_stale: isStale,
     error: raw.error ?? null,
     missing_artifacts: raw.missing_artifacts ?? [],
     active_events_count: raw.active_events_count ?? 0,
     model_versions: modelVersions,
     model_artifacts: raw.model_artifacts,
     firms_latency: raw.data_as_of ? `Data as of ${raw.data_as_of.slice(0, 16).replace('T', ' ')}Z` : 'Snapshot',
+    live_coverage_regions: raw.live_coverage_regions ?? ['gujarat', 'maharashtra', 'odisha', 'chhattisgarh_jharkhand'],
+    uncovered_regions: raw.uncovered_regions ?? ['punjab_haryana', 'rajasthan_solar', 'all_india'],
   };
 }
 
